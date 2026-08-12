@@ -22,7 +22,23 @@ interface Incoming {
   view: TransferView;
   parts: Uint8Array[];
   expected: number;
+  /** Quantos blocos distintos ja chegaram. */
+  received: number;
+  /** O remetente ja anunciou o fim (pode chegar antes dos ultimos blocos). */
+  announced: boolean;
+  graceTimer: ReturnType<typeof setTimeout> | null;
 }
+
+/**
+ * Quanto esperamos pelos blocos atrasados depois do aviso de fim.
+ *
+ * Controle e conteudo viajam em canais SCTP diferentes justamente para que uma
+ * transferencia grande nao atrase um clique — o preco e que nao ha ordem entre
+ * eles: o "acabou" pode ultrapassar os ultimos blocos. Concluir pela contagem
+ * de blocos resolve o caso normal; esta folga cobre o caso em que o aviso
+ * chega primeiro.
+ */
+const GRACE_MS = 15_000;
 
 interface Outgoing {
   view: TransferView;
@@ -134,7 +150,11 @@ export class FileTransfers {
       out.view.state = "cancelado";
     }
     const inc = this.incoming.get(id);
-    if (inc) inc.view.state = "cancelado";
+    if (inc) {
+      inc.view.state = "cancelado";
+      if (inc.graceTimer) clearTimeout(inc.graceTimer);
+      inc.graceTimer = null;
+    }
     this.emit({ t: "file-cancel", id, reason });
     this.changed();
   }
@@ -175,6 +195,9 @@ export class FileTransfers {
           view,
           parts: [],
           expected: Math.ceil(message.size / CHUNK_SIZE),
+          received: 0,
+          announced: false,
+          graceTimer: null,
         });
         if (this.autoAccept) this.emit({ t: "file-accept", id: message.id });
         this.changed();
@@ -205,6 +228,8 @@ export class FileTransfers {
         return true;
       }
       case "file-done": {
+        const inc = this.incoming.get(message.id);
+        if (inc) inc.announced = true;
         this.finish(message.id);
         return true;
       }
@@ -216,21 +241,49 @@ export class FileTransfers {
   handleChunk(buffer: ArrayBuffer) {
     const { id, index, body } = decodeChunk(buffer);
     const inc = this.incoming.get(id);
-    if (!inc || inc.view.state === "cancelado") return;
+    if (!inc || inc.view.state === "cancelado" || inc.view.state === "concluido") return;
+    // Indice fora da faixa anunciada nao existe: descartar mantem a contagem
+    // de blocos como prova confiavel de que o arquivo chegou inteiro.
+    if (index < 0 || index >= inc.expected) return;
+
+    // Um bloco repetido nao pode inflar o progresso.
+    if (inc.parts[index] === undefined) {
+      inc.received += 1;
+      inc.view.transferred = Math.min(inc.view.transferred + body.byteLength, inc.view.size);
+    }
     inc.parts[index] = new Uint8Array(body);
-    inc.view.transferred = Math.min(inc.view.transferred + body.byteLength, inc.view.size);
-    this.changed();
+
+    // Concluir pela contagem, e nao pelo aviso do remetente: assim o resultado
+    // nao depende de qual dos dois canais chega primeiro.
+    if (inc.received >= inc.expected) this.finish(id);
+    else this.changed();
   }
 
   private finish(id: string) {
     const inc = this.incoming.get(id);
-    if (!inc) return;
-    const missing = inc.parts.length < inc.expected || [...inc.parts].some((p) => p === undefined);
-    if (missing) {
-      inc.view.state = "erro";
-      inc.view.detail = "blocos faltando";
+    if (!inc || inc.view.state === "concluido") return;
+
+    // `received` so cresce em indice novo e dentro da faixa, entao a contagem
+    // sozinha ja garante que todos os blocos distintos chegaram.
+    if (inc.received < inc.expected) {
+      // Ainda faltam blocos. Se o remetente ja avisou que terminou, damos uma
+      // folga; se ela estourar, ai sim e falha de verdade.
+      if (inc.announced && !inc.graceTimer) {
+        inc.graceTimer = setTimeout(() => {
+          inc.graceTimer = null;
+          if (inc.view.state === "concluido" || inc.view.state === "cancelado") return;
+          inc.view.state = "erro";
+          inc.view.detail = `faltaram ${inc.expected - inc.received} de ${inc.expected} blocos`;
+          this.changed();
+        }, GRACE_MS);
+      }
       this.changed();
       return;
+    }
+
+    if (inc.graceTimer) {
+      clearTimeout(inc.graceTimer);
+      inc.graceTimer = null;
     }
     const blob = new Blob(inc.parts as BlobPart[], { type: inc.view.mime });
     inc.view.url = URL.createObjectURL(blob);
@@ -242,7 +295,10 @@ export class FileTransfers {
   }
 
   dispose() {
-    for (const inc of this.incoming.values()) if (inc.view.url) URL.revokeObjectURL(inc.view.url);
+    for (const inc of this.incoming.values()) {
+      if (inc.graceTimer) clearTimeout(inc.graceTimer);
+      if (inc.view.url) URL.revokeObjectURL(inc.view.url);
+    }
     this.incoming.clear();
     this.outgoing.clear();
   }

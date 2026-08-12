@@ -16,6 +16,7 @@ npm test
 | `sessao.mjs` | Dois navegadores negociam, autorização do anfitrião, DataChannel aberto nos dois sentidos, chat, caminho ICE, saída limpa | servidor + Chromium |
 | `arquivos.mjs` | 12 MiB pelo DataChannel com contrapressão, aceite explícito, integridade SHA-256 no destino, recusa informada ao remetente | servidor + Chromium |
 | `agente.mjs` | Pareamento por código, recusa sem token, cabeçalho de Private Network Access, mapeamento de coordenada normalizada para pixel real, revogação | X11 + `xdotool` |
+| `pacote.mjs` | O caminho do usuário final: baixar `/agente.mjs` da implantação, rodar o arquivo sozinho fora do repositório e mover o cursor | servidor + X11 + `xdotool` |
 | `controle.mjs` | O laço inteiro: tela compartilhada → vídeo no visualizante → controle concedido → **o cursor do sistema se move** → revogar interrompe | tudo acima |
 
 ## Ambiente gráfico
@@ -44,6 +45,14 @@ mesmo.
 (comum em contêiner: o Chromium devolve `NotReadableError`), segue com um
 canvas 1920×1080 que produz um `MediaStream` de verdade. Todo o restante do
 caminho continua sendo código de produção.
+
+## O que a suíte ainda não cobre
+
+O ambiente onde ela roda é Linux. Os executores de entrada do **Windows**
+(`agent/win-helper.ps1`, PowerShell + user32) e do **macOS**
+(`agent/mac-helper.js`, JXA + CoreGraphics) são exercitados apenas nessas
+plataformas — rode `npm run test:agente` numa máquina Windows ou macOS antes
+de confiar neles em produção.
 
 ## Chromium
 

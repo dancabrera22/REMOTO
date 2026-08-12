@@ -15,7 +15,10 @@
     "test:sessao": "node tests/sessao.mjs",
     "test:arquivos": "node tests/arquivos.mjs",
     "test:agente": "node tests/agente.mjs",
-    "test:controle": "node tests/controle.mjs"
+    "test:controle": "node tests/controle.mjs",
+    "build:agent": "node scripts/build-agent.mjs",
+    "prebuild": "node scripts/build-agent.mjs",
+    "test:pacote": "node tests/pacote.mjs"
   },
   "dependencies": {
     "@upstash/redis": "^1.34.3",

@@ -20,6 +20,7 @@ const SUITES = [
   { name: "sessao webrtc", file: "sessao.mjs", needs: "servidor + chromium" },
   { name: "arquivos", file: "arquivos.mjs", needs: "servidor + chromium" },
   { name: "agente local", file: "agente.mjs", needs: "x11 + xdotool" },
+  { name: "agente empacotado", file: "pacote.mjs", needs: "servidor + x11 + xdotool" },
   { name: "controle ponta a ponta", file: "controle.mjs", needs: "servidor + chromium + x11" },
 ];
 

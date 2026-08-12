@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { AgentCommand } from "@/components/AgentCommand";
 import { ChatPanel } from "@/components/ChatPanel";
 import { FilePanel } from "@/components/FilePanel";
 import { StatsBar } from "@/components/StatsBar";
@@ -10,7 +11,6 @@ import { QUALITY_PRESETS } from "@/lib/protocol";
 import { startRecording } from "@/lib/media/capture";
 import { HostSession } from "@/lib/session/host";
 
-const AGENT_COMMAND = "npx remoto-agent";
 
 export default function SharePage() {
   const sessionRef = useRef<HostSession | null>(null);
@@ -322,16 +322,7 @@ export default function SharePage() {
             </div>
           ) : (
             <div className="space-y-3">
-              <p className="text-xs leading-relaxed text-ink-300">
-                Para liberar mouse e teclado, rode este comando no computador que esta sendo compartilhado. Ele nao
-                instala nada e some quando voce fechar o terminal.
-              </p>
-              <div className="flex gap-2">
-                <code className="flex-1 truncate rounded-lg border border-ink-600 bg-ink-850 px-3 py-2 font-mono text-xs text-ink-200">
-                  {AGENT_COMMAND}
-                </code>
-                <Button onClick={() => void copy(AGENT_COMMAND, "cmd")}>{copied === "cmd" ? "ok" : "copiar"}</Button>
-              </div>
+              <AgentCommand />
               <form
                 className="flex gap-2"
                 onSubmit={async (event) => {

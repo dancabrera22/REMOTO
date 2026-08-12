@@ -14,9 +14,8 @@
  * de entrada da propria aba do navegador, pelo loopback, e some quando voce
  * fecha o terminal.
  *
- *   node agent/remoto-agent.mjs
- *
- * Uma vez publicado no npm, o mesmo efeito com: npx remoto-agent
+ *   node agent/remoto-agent.mjs        (a partir do repositorio)
+ *   node agente.mjs                   (arquivo unico, baixado de /agente.mjs)
  */
 
 import http from "node:http";

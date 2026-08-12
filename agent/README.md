@@ -2,13 +2,36 @@
 
 Entrega mouse e teclado a uma sessão do [REMOTO](../README.md).
 
+O painel do anfitrião já mostra o comando pronto para copiar, com o endereço da
+sua implantação. Ele é sempre uma linha só:
+
+```powershell
+# Windows (PowerShell)
+irm https://seu-app.vercel.app/agente.mjs -OutFile "$env:TEMP\remoto.mjs"; node "$env:TEMP\remoto.mjs"
+```
+
 ```bash
-npx remoto-agent
+# macOS e Linux
+curl -fsSL https://seu-app.vercel.app/agente.mjs -o /tmp/remoto.mjs && node /tmp/remoto.mjs
 ```
 
 Um código de 6 caracteres aparece no terminal. Digite-o na aba do REMOTO, em
 **Agente local → Ativar**. Pronto: quem você autorizar na sessão passa a
 controlar o computador.
+
+`/agente.mjs` é gerado por `scripts/build-agent.mjs` a partir desta pasta: um
+arquivo único, sem dependências, com os auxiliares de plataforma embutidos.
+Vem da **sua** implantação, não do npm — ninguém consegue registrar um nome de
+pacote e se colocar no meio.
+
+Trabalhando a partir do repositório, use direto a versão em módulos:
+
+```bash
+npm run agent
+```
+
+**Requisito único: Node.js 18 ou mais novo** na máquina compartilhada
+(`node -v` para conferir).
 
 ## Por que isso existe
 

@@ -2,8 +2,8 @@
 
 Acesso remoto pelo navegador. Sem instalar nada em nenhuma das duas pontas
 para ver a tela, conversar, sincronizar a área de transferência e trocar
-arquivos; com um comando `npx` — que também não instala nada — para liberar
-mouse e teclado de verdade.
+arquivos; com um comando de uma linha — que também não instala nada — para
+liberar mouse e teclado de verdade.
 
 A tela, o áudio e os arquivos vão **direto de um computador ao outro** por
 WebRTC. O servidor só apresenta os dois lados e sai da frente. Feito para
@@ -28,13 +28,25 @@ separá-los com honestidade:
 | Transferência de arquivos | ✅ | |
 | Área de transferência nos dois sentidos | ✅ | |
 | Bate-papo, ponteiro remoto, gravação | ✅ | |
-| **Mover o mouse, digitar, clicar** | ❌ impossível | ✅ `npx remoto-agent` |
+| **Mover o mouse, digitar, clicar** | ❌ impossível | ✅ um comando de uma linha |
 
-O `remoto-agent` é a menor peça possível que resolve o segundo nível: um
-script Node de execução única, sem dependências, sem instalação, sem
-privilégio de administrador, sem serviço, sem porta na rede. Escuta só em
-`127.0.0.1`, exige um código de pareamento mostrado no terminal e some quando
-você fecha a janela. Detalhes em [`agent/README.md`](agent/README.md).
+O agente é a menor peça possível que resolve o segundo nível: um script Node
+de arquivo único, sem dependências, sem instalação, sem privilégio de
+administrador, sem serviço, sem porta na rede. Escuta só em `127.0.0.1`, exige
+um código de pareamento mostrado no terminal e some quando você fecha a
+janela.
+
+Ele é servido pela **sua própria implantação** em `/agente.mjs`, e o painel do
+anfitrião mostra o comando já preenchido com o seu endereço:
+
+```powershell
+irm https://seu-app.vercel.app/agente.mjs -OutFile "$env:TEMP\remoto.mjs"; node "$env:TEMP\remoto.mjs"
+```
+
+Vir do próprio domínio e não do npm é deliberado: ninguém pode registrar um
+nome de pacote parecido e se colocar no meio. O único requisito na máquina
+compartilhada é **Node.js 18+**. Detalhes em
+[`agent/README.md`](agent/README.md).
 
 ---
 
@@ -59,7 +71,7 @@ você fecha a janela. Detalhes em [`agent/README.md`](agent/README.md).
         │ HTTP no loopback, com token de pareamento
         ▼
   ┌─────────────┐
-  │ remoto-agent│ ── user32 / CoreGraphics / xdotool ──► mouse e teclado
+  │ agente local│ ── user32 / CoreGraphics / xdotool ──► mouse e teclado
   └─────────────┘
 ```
 
@@ -104,7 +116,7 @@ produção (veja abaixo).
 Para liberar mouse e teclado, no computador compartilhado:
 
 ```bash
-npm run agent      # ou, publicado: npx remoto-agent
+npm run agent      # a partir do repositorio
 ```
 
 ---
@@ -200,6 +212,11 @@ Ditos aqui porque descobri-los na hora do suporte é pior.
   inerente ao cenário, não um defeito.
 - **Arquivos recebidos ficam em memória** até o fim da transferência. O teto é
   2 GB.
+- **Windows e macOS ainda não foram exercitados pela suíte**, que roda em
+  Linux. O caminho do Linux (`xdotool`) está verificado ponta a ponta com
+  cursor real; os executores de PowerShell e JXA são código revisado, não
+  código testado. Rode `npm run test:agente` nessas plataformas antes de
+  confiar neles.
 
 ---
 

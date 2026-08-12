@@ -68,7 +68,7 @@ async function main() {
   // Baixa no destino e compara o conteudo byte a byte.
   const [download] = await Promise.all([
     host.waitForEvent("download", { timeout: 30000 }),
-    host.getByRole("link", { name: "baixar" }).click(),
+    host.getByRole("link", { name: "baixar", exact: true }).click(),
   ]);
   const saved = path.join(TMP, "recebido.bin");
   await download.saveAs(saved);

@@ -86,9 +86,9 @@ export default function Home() {
           <h3 className="font-medium text-ink-200">Controle de mouse e teclado</h3>
           <p className="mt-1 text-xs leading-relaxed">
             O navegador nao pode mover o mouse do sistema — e uma barreira do sandbox, nao uma
-            limitacao contornavel. Quem quiser controle roda{" "}
-            <code className="rounded bg-ink-800 px-1 font-mono text-[11px]">npx remoto-agent</code> no
-            computador compartilhado. Sem instalacao, sem administrador.
+            limitacao contornavel. Quem quiser controle roda um comando de uma linha no computador
+            compartilhado; a propria pagina da sessao mostra qual, pronto para copiar. Baixa um
+            arquivo, executa e some ao fechar: sem instalacao, sem administrador.
           </p>
         </div>
         <div>

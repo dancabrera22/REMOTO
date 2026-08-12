@@ -23,9 +23,10 @@ interface Stored {
  * Ponte com o agente local opcional.
  *
  * A pagina web nao pode — por design do sandbox — mover o mouse ou digitar no
- * sistema operacional. Quem quiser controle real roda `npx remoto-agent` (sem
- * instalar nada), e a pagina do anfitriao conversa com esse processo pelo
- * loopback. Sem o agente, a sessao continua valendo em modo visualizacao.
+ * sistema operacional. Quem quiser controle real baixa e roda `/agente.mjs` —
+ * um arquivo, sem instalacao — e a pagina do anfitriao conversa com esse
+ * processo pelo loopback. Sem o agente, a sessao continua em modo
+ * visualizacao.
  *
  * O pareamento por codigo e o que impede qualquer site aberto no navegador de
  * encontrar o agente e assumir a maquina: sem o codigo mostrado no terminal,

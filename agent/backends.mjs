@@ -2,9 +2,29 @@ import { spawn, execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import os from "node:os";
+import fs from "node:fs";
 import { COMBOS, KEYMAP } from "./keymap.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
+
+/**
+ * Localiza um auxiliar de plataforma.
+ *
+ * Rodando a partir do repositorio, ele esta na pasta ao lado. Rodando a
+ * partir do arquivo unico baixado da implantacao, ele vem embutido em base64
+ * e precisa existir em disco para ser executado — gravamos em pasta
+ * temporaria, com permissao restrita ao dono.
+ */
+function helperPath(name) {
+  const embedded = globalThis.__REMOTO_EMBEDDED__?.[name];
+  if (!embedded) return path.join(HERE, name);
+
+  const dir = path.join(os.tmpdir(), `remoto-agente-${process.getuid?.() ?? "win"}`);
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const file = path.join(dir, name);
+  fs.writeFileSync(file, Buffer.from(embedded, "base64"), { mode: 0o600 });
+  return file;
+}
 
 /** Executa um comando pontual. Com `input`, o texto vai pelo stdin. */
 function run(command, args, options = {}) {
@@ -171,7 +191,7 @@ class WindowsBackend extends Backend {
     backend.displays = await probeWindowsDisplays();
     backend.child = spawn(
       "powershell.exe",
-      ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", path.join(HERE, "win-helper.ps1")],
+      ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", helperPath("win-helper.ps1")],
       { stdio: ["pipe", "pipe", "pipe"] },
     );
     backend.child.stderr?.on("data", (data) => {
@@ -291,7 +311,7 @@ class MacBackend extends Backend {
   static async create() {
     const backend = new MacBackend("coregraphics");
     backend.displays = await probeMacDisplays();
-    backend.child = spawn("osascript", ["-l", "JavaScript", path.join(HERE, "mac-helper.js")], {
+    backend.child = spawn("osascript", ["-l", "JavaScript", helperPath("mac-helper.js")], {
       stdio: ["pipe", "ignore", "pipe"],
     });
     backend.child.stderr?.on("data", (data) => {
