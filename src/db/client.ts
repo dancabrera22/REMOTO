@@ -1,0 +1,50 @@
+import * as SQLite from "expo-sqlite";
+import { migracoes } from "./migrations";
+
+export const NOME_BANCO = "meu-plantao.db";
+
+/**
+ * Abre o banco e deixa o esquema na versao corrente.
+ *
+ * `user_version` do proprio SQLite e o marcador de versao: nao exige tabela
+ * auxiliar, e atomico e sobrevive a qualquer coisa que o app faca.
+ */
+export async function abreBanco(): Promise<SQLite.SQLiteDatabase> {
+  const db = await SQLite.openDatabaseAsync(NOME_BANCO);
+  // WAL deixa leitura e escrita concorrentes (a agenda consulta enquanto o
+  // formulario grava). `foreign_keys` nao vem ligado por padrao no SQLite.
+  await db.execAsync("PRAGMA journal_mode = WAL;");
+  await db.execAsync("PRAGMA foreign_keys = ON;");
+  await aplicaMigracoes(db);
+  return db;
+}
+
+/** Aplica as migracoes pendentes em ordem. Devolve a versao final. */
+export async function aplicaMigracoes(db: SQLite.SQLiteDatabase): Promise<number> {
+  const linha = await db.getFirstAsync<{ user_version: number }>("PRAGMA user_version");
+  let atual = linha?.user_version ?? 0;
+
+  for (const migracao of migracoes) {
+    if (migracao.versao <= atual) continue;
+    if (!Number.isInteger(migracao.versao)) {
+      throw new Error(`Versao de migracao invalida: ${migracao.versao}`);
+    }
+
+    await db.withTransactionAsync(async () => {
+      await db.execAsync(migracao.sql);
+    });
+    // PRAGMA nao aceita parametro; a versao vem do nosso proprio codigo e e
+    // conferida como inteiro acima.
+    await db.execAsync(`PRAGMA user_version = ${migracao.versao};`);
+    atual = migracao.versao;
+  }
+
+  return atual;
+}
+
+export async function versaoAtual(db: SQLite.SQLiteDatabase): Promise<number> {
+  const linha = await db.getFirstAsync<{ user_version: number }>("PRAGMA user_version");
+  return linha?.user_version ?? 0;
+}
+
+export type Banco = SQLite.SQLiteDatabase;
