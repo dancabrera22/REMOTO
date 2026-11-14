@@ -1,4 +1,5 @@
 import * as SQLite from "expo-sqlite";
+import type { Executor } from "./locais";
 import { migracoes } from "./migrations";
 
 export const NOME_BANCO = "meu-plantao.db";
@@ -48,3 +49,30 @@ export async function versaoAtual(db: SQLite.SQLiteDatabase): Promise<number> {
 }
 
 export type Banco = SQLite.SQLiteDatabase;
+
+const executores = new WeakMap<Banco, Executor>();
+
+/**
+ * Adapta o banco do Expo a `Executor`, a interface que o resto do app usa.
+ *
+ * O Expo exige `params` em toda chamada; `Executor` o torna opcional, porque
+ * a maioria das consultas nao tem parametro. Os testes fazem a mesma ponte com
+ * o `node:sqlite` — e por isso os mesmos comandos SQL rodam nos dois mundos.
+ * O resultado e guardado por banco para a identidade ficar estavel entre
+ * renderizacoes (as consultas dependem dela).
+ */
+export function executorDe(db: Banco): Executor {
+  let ex = executores.get(db);
+  if (!ex) {
+    ex = {
+      getAllAsync: (sql, params = []) => db.getAllAsync(sql, params),
+      getFirstAsync: (sql, params = []) => db.getFirstAsync(sql, params),
+      runAsync: async (sql, params = []) => {
+        const r = await db.runAsync(sql, params);
+        return { lastInsertRowId: r.lastInsertRowId, changes: r.changes };
+      },
+    };
+    executores.set(db, ex);
+  }
+  return ex;
+}

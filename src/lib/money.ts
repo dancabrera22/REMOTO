@@ -96,3 +96,28 @@ export function aplicaDesconto(centavos: Centavos, percentual: number): Centavos
 export function valorPorHora(valorHoraCentavos: Centavos, minutos: number): Centavos {
   return Math.round((valorHoraCentavos * minutos) / 60);
 }
+
+/* ------------------------------- percentual ------------------------------- */
+
+/**
+ * Le um percentual digitado: "11", "11,5", "11.5" e "11%" valem. Devolve `null`
+ * quando nao e um numero — quem valida a faixa (0 a 100) e o formulario.
+ */
+export function lePercentual(texto: string): number | null {
+  const limpo = texto.trim().replace(/%/g, "").replace(",", ".");
+  if (!limpo || !/^\d+(\.\d+)?$/.test(limpo)) return null;
+  const n = Number(limpo);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** `11` → "11%"; `11.5` → "11,5%". */
+export function formatPercentual(n: number): string {
+  const texto = Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100).replace(".", ",");
+  return `${texto}%`;
+}
+
+/** Para preencher o campo de edicao: `11.5` → "11,5", `0` → "". */
+export function percentualParaCampo(n: number): string {
+  if (!n) return "";
+  return String(Math.round(n * 100) / 100).replace(".", ",");
+}

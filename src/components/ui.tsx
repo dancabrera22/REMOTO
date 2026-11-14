@@ -107,10 +107,12 @@ export function Button({
   icone,
   disabled,
   largura,
+  compacto,
   style,
 }: {
   children: ReactNode;
   onPress?: () => void;
+  compacto?: boolean;
   variant?: "primary" | "secondary" | "ghost" | "danger";
   icone?: NomeIcone;
   disabled?: boolean;
@@ -136,8 +138,8 @@ export function Button({
           alignItems: "center",
           justifyContent: "center",
           gap: t.spacing.sm,
-          paddingVertical: 13,
-          paddingHorizontal: t.spacing.lg,
+          paddingVertical: compacto ? 8 : 13,
+          paddingHorizontal: compacto ? t.spacing.md : t.spacing.lg,
           borderRadius: t.radius.md,
           backgroundColor: estilos.fundo,
           borderWidth: variant === "secondary" ? StyleSheet.hairlineWidth : 0,
@@ -250,9 +252,12 @@ export function Row({
   direita,
   onPress,
   ultima,
+  linhasSubtitulo = 1,
 }: {
   titulo: string;
   subtitulo?: string;
+  /** Quantas linhas o subtitulo pode ocupar antes de ser cortado. */
+  linhasSubtitulo?: number;
   /** Bolinha colorida a esquerda — e assim que um local e reconhecido. */
   cor?: string;
   icone?: NomeIcone;
@@ -279,7 +284,7 @@ export function Row({
           {titulo}
         </Txt>
         {subtitulo && (
-          <Txt variant="caption" tom="muted" numberOfLines={1}>
+          <Txt variant="caption" tom="muted" numberOfLines={linhasSubtitulo}>
             {subtitulo}
           </Txt>
         )}

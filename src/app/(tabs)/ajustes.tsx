@@ -8,7 +8,7 @@ import { useTheme } from "@/theme";
 
 const ETAPAS = [
   { n: 1, nome: "Fundação", detalhe: "abas, banco, tema, agenda navegável", feita: true },
-  { n: 2, nome: "Locais", detalhe: "cadastro, valor padrão, regra de pagamento", feita: false },
+  { n: 2, nome: "Locais", detalhe: "cadastro, cor, valor padrão, regra de pagamento", feita: true },
   { n: 3, nome: "Plantões", detalhe: "lançar, editar, ver na agenda", feita: false },
   { n: 4, nome: "Recorrência", detalhe: "escala fixa que se repete", feita: false },
   { n: 5, nome: "Financeiro", detalhe: "previsão de recebimento e baixa", feita: false },

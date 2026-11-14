@@ -7,7 +7,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { abreBanco, type Banco } from "./client";
+import { abreBanco, executorDe, type Banco } from "./client";
+import type { Executor } from "./locais";
 
 export type EstadoBanco =
   | { status: "carregando" }
@@ -79,12 +80,12 @@ export function useEstadoBanco(): EstadoBanco {
 }
 
 /** Use quando a tela so faz sentido com o banco aberto. */
-export function useBanco(): Banco {
+export function useBanco(): Executor {
   const estado = useContext(BancoContext);
   if (estado.status !== "pronto") {
     throw new Error("useBanco chamado antes do banco estar pronto");
   }
-  return estado.db;
+  return executorDe(estado.db);
 }
 
 export function useInvalidar(): () => void {
@@ -101,7 +102,7 @@ export type Consulta<T> =
  * alguem chama `invalidar()` depois de uma escrita.
  */
 export function useConsulta<T>(
-  consulta: (db: Banco) => Promise<T>,
+  consulta: (db: Executor) => Promise<T>,
   deps: readonly unknown[] = [],
 ): Consulta<T> {
   const estado = useEstadoBanco();
@@ -122,7 +123,7 @@ export function useConsulta<T>(
     let cancelado = false;
     (async () => {
       try {
-        const dados = await consulta(estado.db);
+        const dados = await consulta(executorDe(estado.db));
         if (!cancelado) setResultado({ status: "pronto", dados, erro: null });
       } catch (erro) {
         if (!cancelado) {

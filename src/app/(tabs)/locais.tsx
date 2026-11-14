@@ -1,78 +1,147 @@
+import { useRouter } from "expo-router";
+import { useState } from "react";
 import { View } from "react-native";
 import { Screen } from "@/components/screen";
-import { Button, Card, EmptyState, Pill, Txt } from "@/components/ui";
-import { useConsulta } from "@/db/provider";
+import { Button, Card, EmptyState, Pill, Row, Secao, Txt } from "@/components/ui";
+import { listaLocais, restauraLocal } from "@/db/locais";
+import { useBanco, useConsulta, useInvalidar } from "@/db/provider";
+import { descreveValor, type Local } from "@/lib/locais";
+import { formatPercentual } from "@/lib/money";
+import { descreveRegra } from "@/lib/pagamento";
 import { useTheme } from "@/theme";
 
 export default function Locais() {
   const t = useTheme();
+  const router = useRouter();
+  const [verArquivados, setVerArquivados] = useState(false);
 
-  // Consulta real desde a Etapa 1: e o que prova que o banco abriu, migrou e
-  // responde. Se algo estiver errado, aparece aqui e em Ajustes.
-  const locais = useConsulta(async (db) => {
-    const linha = await db.getFirstAsync<{ total: number }>(
-      "SELECT COUNT(*) AS total FROM locais WHERE arquivado_em IS NULL",
-    );
-    return linha?.total ?? 0;
-  });
+  const ativos = useConsulta((db) => listaLocais(db, { arquivados: false }));
+  const arquivados = useConsulta((db) => listaLocais(db, { arquivados: true }));
+
+  const novoLocal = () => router.push("/local/novo");
+  const abre = (l: Local) => router.push({ pathname: "/local/[id]", params: { id: String(l.id) } });
+
+  const lista = ativos.status === "pronto" ? ativos.dados : [];
+  const quantosArquivados = arquivados.status === "pronto" ? arquivados.dados.length : 0;
 
   return (
     <Screen
       titulo="Locais"
-      subtitulo="Hospitais, UPAs e clínicas onde você faz plantão"
+      subtitulo={
+        ativos.status === "pronto" && lista.length > 0
+          ? `${lista.length} ${lista.length === 1 ? "local" : "locais"} cadastrados`
+          : "Onde você faz plantão"
+      }
+      direita={
+        lista.length > 0 ? (
+          <Button icone="plus" compacto onPress={novoLocal}>
+            Novo
+          </Button>
+        ) : undefined
+      }
     >
-      {locais.status === "erro" && (
+      {ativos.status === "erro" && (
         <Card style={{ borderColor: t.colors.danger }}>
           <Txt variant="bodyStrong" tom="danger">
             Não consegui ler o banco
           </Txt>
           <Txt variant="caption" tom="muted" style={{ marginTop: 4 }}>
-            {locais.erro}
+            {ativos.erro}
           </Txt>
         </Card>
       )}
 
-      <Card>
-        <EmptyState
-          icone="map-marker-plus-outline"
-          titulo={
-            locais.status === "pronto" && locais.dados > 0
-              ? `${locais.dados} ${locais.dados === 1 ? "local" : "locais"} cadastrados`
-              : "Nenhum local cadastrado"
-          }
-          descricao="Cada local guarda o valor padrão do plantão, quanto tempo leva para pagar e os descontos — é daí que sai a previsão de quando o dinheiro entra."
-        >
-          <View style={{ alignItems: "center", gap: t.spacing.sm }}>
-            <Button icone="plus" disabled>
-              Novo local
+      {ativos.status === "pronto" && lista.length === 0 && (
+        <Card>
+          <EmptyState
+            icone="map-marker-plus-outline"
+            titulo="Nenhum local cadastrado"
+            descricao="Cada local guarda o valor do plantão, quando ele paga e os descontos — é daí que sai a previsão do que você vai receber."
+          >
+            <Button icone="plus" onPress={novoLocal}>
+              Cadastrar primeiro local
             </Button>
-            <Pill tom="primary" icone="progress-wrench">
-              chega na Etapa 2
-            </Pill>
-          </View>
-        </EmptyState>
-      </Card>
+          </EmptyState>
+        </Card>
+      )}
 
-      <Card>
-        <Txt variant="bodyStrong">O que vai caber num local</Txt>
-        <View style={{ gap: t.spacing.sm, marginTop: t.spacing.md }}>
-          {[
-            ["tag-outline", "Nome, apelido e uma cor para reconhecer na agenda"],
-            ["cash", "Valor por plantão ou por hora, já sugerido no lançamento"],
-            ["calendar-clock", "Regra de pagamento: dia fixo, N dias depois ou fechamento"],
-            ["percent-outline", "Descontos de IR, ISS ou cooperativa, para ver o líquido"],
-          ].map(([, texto]) => (
-            <View key={texto} style={{ flexDirection: "row", gap: t.spacing.sm }}>
-              <Txt variant="label" tom="faint">
-                •
-              </Txt>
-              <Txt variant="label" tom="muted" style={{ flex: 1 }}>
-                {texto}
-              </Txt>
-            </View>
+      {lista.length > 0 && (
+        <Card padding="none" style={{ paddingHorizontal: t.spacing.lg }}>
+          {lista.map((local, i) => (
+            <Row
+              key={local.id}
+              cor={local.cor}
+              titulo={local.apelido ? `${local.nome} · ${local.apelido}` : local.nome}
+              subtitulo={resumo(local)}
+              linhasSubtitulo={2}
+              onPress={() => abre(local)}
+              ultima={i === lista.length - 1}
+            />
           ))}
+        </Card>
+      )}
+
+      {quantosArquivados > 0 && (
+        <View>
+          <Secao
+            acao={
+              <Button variant="ghost" compacto onPress={() => setVerArquivados((v) => !v)}>
+                {verArquivados ? "Ocultar" : "Mostrar"}
+              </Button>
+            }
+          >
+            {`Arquivados (${quantosArquivados})`}
+          </Secao>
+          {verArquivados && arquivados.status === "pronto" && (
+            <Card padding="none" style={{ paddingHorizontal: t.spacing.lg }}>
+              {arquivados.dados.map((local, i) => (
+                <LinhaArquivada
+                  key={local.id}
+                  local={local}
+                  ultima={i === arquivados.dados.length - 1}
+                />
+              ))}
+            </Card>
+          )}
         </View>
-      </Card>
+      )}
     </Screen>
+  );
+}
+
+/** "R$ 1.200 por plantão · Paga dia 10 do mês seguinte · −11%". */
+function resumo(local: Local): string {
+  const partes = [descreveValor(local.modoValor, local.valorPadrao), descreveRegra(local.regra)];
+  if (local.descontoPercentual > 0) partes.push(`−${formatPercentual(local.descontoPercentual)}`);
+  return partes.join(" · ");
+}
+
+function LinhaArquivada({ local, ultima }: { local: Local; ultima: boolean }) {
+  const db = useBanco();
+  const invalidar = useInvalidar();
+
+  return (
+    <Row
+      cor={local.cor}
+      titulo={local.nome}
+      subtitulo={resumo(local)}
+      linhasSubtitulo={2}
+      ultima={ultima}
+      direita={
+        <View style={{ alignItems: "flex-end", gap: 6 }}>
+          <Pill>arquivado</Pill>
+          <Button
+            variant="secondary"
+            compacto
+            onPress={async () => {
+              await restauraLocal(db, local.id);
+              invalidar();
+            }}
+          >
+            Restaurar
+          </Button>
+        </View>
+      }
+    />
   );
 }

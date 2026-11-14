@@ -15,13 +15,102 @@ export interface MarcadorDia {
   cores: string[];
 }
 
+/** Quantos pontinhos cabem sob um dia antes de virar "+". */
+export const MAX_PONTOS = 3;
+
+/**
+ * Uma celula de dia. Existe como componente proprio para que o calendario e a
+ * previa de cor do formulario de local desenhem exatamente a mesma coisa: o que
+ * voce ve ao escolher a cor e o que vai aparecer na agenda.
+ *
+ * Os pontinhos ficam FORA do quadrado do numero, sobre o fundo do cartao. Isso
+ * importa: no dia selecionado o quadrado e verde-escuro, e um ponto dentro dele
+ * perderia a cor do local — que e a unica pista de onde voce estara naquela data.
+ */
+export function DiaCelula({
+  dia,
+  selecionado = false,
+  hoje = false,
+  foraDoMes = false,
+  fimDeSemana = false,
+  cores = [],
+  onPress,
+}: {
+  dia: number;
+  selecionado?: boolean;
+  hoje?: boolean;
+  foraDoMes?: boolean;
+  fimDeSemana?: boolean;
+  cores?: readonly string[];
+  onPress?: () => void;
+}) {
+  const t = useTheme();
+  const excedente = cores.length - MAX_PONTOS;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={!onPress}
+      role="button"
+      aria-selected={selecionado}
+      style={{ flex: 1, alignItems: "center", paddingVertical: 3 }}
+    >
+      <View
+        style={{
+          width: 38,
+          height: 38,
+          borderRadius: t.radius.md,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: selecionado
+            ? t.colors.primary
+            : hoje
+              ? t.colors.primarySoft
+              : "transparent",
+        }}
+      >
+        <Txt
+          variant="label"
+          tom={
+            selecionado
+              ? "inverso"
+              : foraDoMes
+                ? "faint"
+                : hoje
+                  ? "primary"
+                  : fimDeSemana
+                    ? "muted"
+                    : "normal"
+          }
+          style={hoje && !selecionado ? { fontWeight: "700" } : undefined}
+        >
+          {dia}
+        </Txt>
+      </View>
+
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 3, height: 8, marginTop: 2 }}>
+        {cores.slice(0, MAX_PONTOS).map((cor, i) => (
+          <View
+            key={`${cor}-${i}`}
+            style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: cor }}
+          />
+        ))}
+        {excedente > 0 && (
+          <Txt variant="caption" tom="faint" style={{ fontSize: 9, lineHeight: 10 }}>
+            +
+          </Txt>
+        )}
+      </View>
+    </Pressable>
+  );
+}
+
 /**
  * Calendario mensal.
  *
- * Nucleo da aba Agenda e peca de base das etapas seguintes: a partir da Etapa 3
- * ele recebe `marcadores` com as cores dos locais de cada dia, e e por isso que
- * a escolha da cor do local, na Etapa 2, importa tanto — o mes inteiro passa a
- * ser lido de relance, antes de qualquer texto.
+ * Nucleo da aba Agenda: a partir da Etapa 3 ele recebe `marcadores` com as
+ * cores dos locais de cada dia. E por isso que a cor escolhida no cadastro do
+ * local importa tanto — o mes inteiro passa a ser lido de relance.
  */
 export function CalendarioMes({
   referenciaMs,
@@ -40,10 +129,12 @@ export function CalendarioMes({
   const semanas = gradeDoMes(referenciaMs);
   const mesAtual = inicioDoMes(Date.now()) === inicioDoMes(referenciaMs);
 
-  const seta = (direcao: -1 | 1, nome: "chevron-left" | "chevron-right") => (
+  const seta = (direcao: -1 | 1, nome: "chevron-left" | "chevron-right", rotulo: string) => (
     <Pressable
       onPress={() => onTrocarMes(somaMeses(referenciaMs, direcao))}
       hitSlop={10}
+      accessibilityRole="button"
+      accessibilityLabel={rotulo}
       style={({ pressed }) => ({
         width: 36,
         height: 36,
@@ -60,7 +151,7 @@ export function CalendarioMes({
   return (
     <View style={{ gap: t.spacing.md }}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-        {seta(-1, "chevron-left")}
+        {seta(-1, "chevron-left", "Mês anterior")}
         <Pressable
           onPress={() => !mesAtual && onTrocarMes(Date.now())}
           style={{ alignItems: "center", gap: 2 }}
@@ -72,7 +163,7 @@ export function CalendarioMes({
             </Txt>
           )}
         </Pressable>
-        {seta(1, "chevron-right")}
+        {seta(1, "chevron-right", "Próximo mês")}
       </View>
 
       <View style={{ flexDirection: "row" }}>
@@ -88,65 +179,18 @@ export function CalendarioMes({
       <View style={{ gap: 2 }}>
         {semanas.map((semana, i) => (
           <View key={i} style={{ flexDirection: "row" }}>
-            {semana.map((celula) => {
-              const selecionado = selecionadoMs !== null && mesmoDia(celula.ms, selecionadoMs);
-              const marcador = marcadores?.[celula.chave];
-
-              return (
-                <Pressable
-                  key={celula.chave}
-                  onPress={() => onSelecionar(celula.ms)}
-                  style={{ flex: 1, alignItems: "center", paddingVertical: 3 }}
-                >
-                  <View
-                    style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: t.radius.md,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      backgroundColor: selecionado
-                        ? t.colors.primary
-                        : celula.hoje
-                          ? t.colors.primarySoft
-                          : "transparent",
-                    }}
-                  >
-                    <Txt
-                      variant="label"
-                      tom={
-                        selecionado
-                          ? "inverso"
-                          : celula.foraDoMes
-                            ? "faint"
-                            : celula.hoje
-                              ? "primary"
-                              : celula.fimDeSemana
-                                ? "muted"
-                                : "normal"
-                      }
-                      style={celula.hoje && !selecionado ? { fontWeight: "700" } : undefined}
-                    >
-                      {celula.dia}
-                    </Txt>
-                  </View>
-
-                  <View style={{ flexDirection: "row", gap: 2, height: 6, marginTop: 1 }}>
-                    {marcador?.cores.slice(0, 3).map((cor, j) => (
-                      <View
-                        key={j}
-                        style={{
-                          width: 4,
-                          height: 4,
-                          borderRadius: 2,
-                          backgroundColor: selecionado ? t.colors.primaryOn : cor,
-                        }}
-                      />
-                    ))}
-                  </View>
-                </Pressable>
-              );
-            })}
+            {semana.map((celula) => (
+              <DiaCelula
+                key={celula.chave}
+                dia={celula.dia}
+                selecionado={selecionadoMs !== null && mesmoDia(celula.ms, selecionadoMs)}
+                hoje={celula.hoje}
+                foraDoMes={celula.foraDoMes}
+                fimDeSemana={celula.fimDeSemana}
+                cores={marcadores?.[celula.chave]?.cores}
+                onPress={() => onSelecionar(celula.ms)}
+              />
+            ))}
           </View>
         ))}
       </View>

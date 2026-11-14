@@ -11,7 +11,8 @@
     "lint": "expo lint",
     "doctor": "npx --yes expo-doctor",
     "test": "node --experimental-strip-types tests/run.mjs",
-    "test:telas": "node tests/telas.mjs"
+    "test:telas": "node tests/telas.mjs",
+    "test:fluxo": "node --experimental-strip-types tests/fluxo-locais.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",

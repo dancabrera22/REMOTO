@@ -39,22 +39,45 @@ export const type = {
 } as const;
 
 /**
- * Cores que o usuario atribui aos locais de plantao. Escolhidas para serem
- * distinguiveis entre si e legiveis nos dois temas — um plantao e reconhecido
- * pela cor antes de ser lido.
+ * Cores que o usuario atribui aos locais de plantao.
+ *
+ * Um plantao e reconhecido pela cor antes de ser lido: o pontinho sob o dia na
+ * agenda e a unica pista visual de onde voce estara naquela data. Por isso a
+ * paleta segue dois criterios, ambos verificados em `tests/cores.mjs`:
+ *
+ *  1. Visivel nos dois temas — contraste minimo de 3:1 contra a superficie
+ *     clara e contra a escura (o padrao WCAG para elementos graficos).
+ *  2. Distinguivel entre si — espalhadas pelo circulo cromatico, para que dois
+ *     locais nunca virem "dois pontinhos quase iguais".
+ *
+ * Indigo e vinho foram testados e retirados: o primeiro ficava a 12 de distancia
+ * do azul, e o segundo so passava no tema escuro clareando ate virar rosa.
+ * Melhor treze cores bem separadas do que quinze que se confundem.
+ *
+ * Os nomes existem para leitores de tela: "cor 3 de 13" nao diz nada a quem
+ * nao enxerga a paleta.
  */
 export const coresLocais = [
-  "#2D7D6F",
-  "#2F6FED",
-  "#B4531F",
-  "#7A4FBF",
-  "#1F7FA6",
-  "#B03A5B",
-  "#5C7A1F",
-  "#A8761C",
-  "#4A5568",
-  "#B0356F",
+  { hex: "#D6453D", nome: "Vermelho" },
+  { hex: "#D9701E", nome: "Laranja" },
+  { hex: "#B8861B", nome: "Mostarda" },
+  { hex: "#6F9A1F", nome: "Oliva" },
+  { hex: "#1E9E5B", nome: "Verde" },
+  { hex: "#1F8A78", nome: "Verde-água" },
+  { hex: "#1B90B8", nome: "Ciano" },
+  { hex: "#2F6FED", nome: "Azul" },
+  { hex: "#8A4FBF", nome: "Roxo" },
+  { hex: "#B4409E", nome: "Magenta" },
+  { hex: "#D9467A", nome: "Rosa" },
+  { hex: "#A06A3F", nome: "Marrom" },
+  { hex: "#6B7C8C", nome: "Grafite" },
 ] as const;
+
+export type CorLocal = (typeof coresLocais)[number];
+
+export function nomeDaCor(hex: string): string {
+  return coresLocais.find((c) => c.hex.toLowerCase() === hex.toLowerCase())?.nome ?? "Personalizada";
+}
 
 interface Palette {
   bg: string;

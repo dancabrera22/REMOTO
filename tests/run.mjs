@@ -9,13 +9,25 @@
  * `tests/telas.mjs`, que exige o servidor web do Expo no ar.
  */
 import { report } from "./helpers.mjs";
+import { testes as cores } from "./cores.mjs";
 import { testes as esquema } from "./esquema.mjs";
+import { testes as locais } from "./locais.mjs";
 import { testes as logica } from "./logica.mjs";
+import { testes as pagamento } from "./pagamento.mjs";
 
 console.log("\n── lógica (dinheiro e datas)");
 logica();
 
+console.log("\n── paleta de cores");
+cores();
+
+console.log("\n── regra de pagamento");
+pagamento();
+
 console.log("\n── esquema do banco");
 esquema();
+
+console.log("\n── locais (validação e persistência)");
+await locais();
 
 process.exit(report() ? 0 : 1);

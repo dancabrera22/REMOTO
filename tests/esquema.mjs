@@ -10,7 +10,7 @@ import { DatabaseSync } from "node:sqlite";
 import { migracoes, versaoEsquema } from "../src/db/migrations.ts";
 import { check, report } from "./helpers.mjs";
 
-function bancoMigrado() {
+export function bancoMigrado() {
   const db = new DatabaseSync(":memory:");
   db.exec("PRAGMA foreign_keys = ON;");
   let versao = db.prepare("PRAGMA user_version").get().user_version;
