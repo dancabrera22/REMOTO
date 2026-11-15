@@ -14,7 +14,8 @@
     "test:telas": "node tests/telas.mjs",
     "test:fluxo": "node --experimental-strip-types tests/fluxo-locais.mjs",
     "test:plantoes": "node --experimental-strip-types tests/fluxo-plantoes.mjs",
-    "test:escalas": "node --experimental-strip-types tests/fluxo-escalas.mjs"
+    "test:escalas": "node --experimental-strip-types tests/fluxo-escalas.mjs",
+    "test:atalhos": "node --experimental-strip-types tests/fluxo-atalhos.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",

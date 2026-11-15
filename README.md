@@ -14,8 +14,11 @@ celular.
 > trabalhou ou recebeu nunca é apagado por uma edição em série. Cada plantão
 > pode ser marcado como **pago**; o resumo do mês separa o já recebido do a
 > receber. Na agenda, **deslize o calendário** para trocar de mês e **deslize o
-> cartão para a esquerda** para excluir. O estado de cada etapa está dentro do
-> app, em **Ajustes**.
+> cartão para a esquerda** para excluir, ou **segure o dedo num dia** para incluir
+> um plantão ali. Dá para cadastrar um local direto da agenda (botão **Local**)
+> ou do formulário de plantão (o círculo com **+** ao lado dos locais): ao voltar,
+> o local novo já vem escolhido e o resto do formulário continua como estava. O
+> estado de cada etapa está dentro do app, em **Ajustes**.
 
 ---
 
@@ -161,6 +164,7 @@ npx expo start --web --port 8081     # num terminal
 npm run test:fluxo                   # noutro: locais — cadastra, edita, arquiva, restaura, recarrega
 npm run test:plantoes                # noutro: plantões — a cor chegando ao pontinho, conflito, cancelar, excluir
 npm run test:escalas                 # noutro: escalas, pagamento e gestos (com toques de dedo de verdade)
+npm run test:atalhos                 # noutro: botão Local, o «+» do formulário, segurar o dia
 npm run test:telas                   # retratos das quatro abas nos dois temas
 ```
 

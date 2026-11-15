@@ -1,11 +1,11 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Modal, Pressable, ScrollView, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Pressable, View } from "react-native";
 import { excluiPlantao } from "@/db/plantoes";
 import { useBanco } from "@/db/provider";
 import { contaImpacto, excluiDaSerie, ROTULO_ESCOPO, type EscopoSerie, type Impacto } from "@/db/series";
 import { formatDiaSemana, formatData } from "@/lib/datetime";
 import { useTheme } from "@/theme";
+import { Folha } from "./folha";
 import { Button, Icone, Txt } from "./ui";
 
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
@@ -41,7 +41,6 @@ export function EscopoModal({
 }) {
   const t = useTheme();
   const db = useBanco();
-  const insets = useSafeAreaInsets();
 
   const [escopo, setEscopo] = useState<EscopoSerie>(escopos[0] ?? "este");
   const [impactos, setImpactos] = useState<Partial<Record<EscopoSerie, Impacto | null>>>({});
@@ -103,81 +102,67 @@ export function EscopoModal({
   }
 
   return (
-    <Modal transparent animationType="fade" onRequestClose={onFechar} statusBarTranslucent>
-      <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" }}>
-        <Pressable style={{ flex: 1 }} onPress={onFechar} aria-label="Fechar" />
-        <View
-          style={{
-            backgroundColor: t.colors.surface,
-            borderTopLeftRadius: t.radius.lg,
-            borderTopRightRadius: t.radius.lg,
-            paddingHorizontal: t.spacing.lg,
-            paddingTop: t.spacing.lg,
-            paddingBottom: insets.bottom + t.spacing.lg,
-            gap: t.spacing.md,
-            maxHeight: "85%",
-          }}
-        >
-          <Txt variant="title">{titulo}</Txt>
-          <ScrollView contentContainerStyle={{ gap: t.spacing.sm }} showsVerticalScrollIndicator={false}>
-            {escopos.length > 0 && (
-              <View role="radiogroup" style={{ gap: t.spacing.sm }}>
-                {escopos.map((e) => {
-                  const ativo = e === escopo;
-                  return (
-                    <Pressable
-                      key={e}
-                      onPress={() => setEscopo(e)}
-                      role="radio"
-                      aria-checked={ativo}
-                      style={{
-                        flexDirection: "row",
-                        gap: t.spacing.md,
-                        padding: t.spacing.md,
-                        borderRadius: t.radius.md,
-                        borderWidth: ativo ? 2 : 1,
-                        borderColor: ativo ? t.colors.primary : t.colors.borderStrong,
-                        backgroundColor: ativo ? t.colors.primarySoft : t.colors.surface,
-                      }}
-                    >
-                      <Icone
-                        name={ativo ? "radiobox-marked" : "radiobox-blank"}
-                        size={22}
-                        color={ativo ? t.colors.primary : t.colors.textFaint}
-                        aria-hidden
-                        importantForAccessibility="no"
-                      />
-                      <View style={{ flex: 1, gap: 2 }}>
-                        <Txt variant="bodyStrong" tom={ativo ? "primary" : "normal"}>
-                          {ROTULO_ESCOPO[e]}
-                        </Txt>
-                        <Txt variant="caption" tom="muted">
-                          {detalhe(e)}
-                        </Txt>
-                      </View>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            )}
-            {rodape}
-            {erro && (
-              <Txt variant="label" tom="danger">
-                {erro}
-              </Txt>
-            )}
-          </ScrollView>
-          <View style={{ flexDirection: "row", gap: t.spacing.sm }}>
-            <Button variant={tomConfirmar === "danger" ? "danger" : "primary"} onPress={confirma} disabled={trabalhando}>
-              {trabalhando ? "Aguarde…" : rotuloConfirmar}
-            </Button>
-            <Button variant="secondary" onPress={onFechar} disabled={trabalhando}>
-              Cancelar
-            </Button>
-          </View>
+    <Folha
+      titulo={titulo}
+      onFechar={onFechar}
+      acoes={
+        <View style={{ flexDirection: "row", gap: t.spacing.sm }}>
+          <Button variant={tomConfirmar === "danger" ? "danger" : "primary"} onPress={confirma} disabled={trabalhando}>
+            {trabalhando ? "Aguarde…" : rotuloConfirmar}
+          </Button>
+          <Button variant="secondary" onPress={onFechar} disabled={trabalhando}>
+            Cancelar
+          </Button>
         </View>
-      </View>
-    </Modal>
+      }
+    >
+      {escopos.length > 0 && (
+        <View role="radiogroup" style={{ gap: t.spacing.sm }}>
+          {escopos.map((e) => {
+            const ativo = e === escopo;
+            return (
+              <Pressable
+                key={e}
+                onPress={() => setEscopo(e)}
+                role="radio"
+                aria-checked={ativo}
+                style={{
+                  flexDirection: "row",
+                  gap: t.spacing.md,
+                  padding: t.spacing.md,
+                  borderRadius: t.radius.md,
+                  borderWidth: ativo ? 2 : 1,
+                  borderColor: ativo ? t.colors.primary : t.colors.borderStrong,
+                  backgroundColor: ativo ? t.colors.primarySoft : t.colors.surface,
+                }}
+              >
+                <Icone
+                  name={ativo ? "radiobox-marked" : "radiobox-blank"}
+                  size={22}
+                  color={ativo ? t.colors.primary : t.colors.textFaint}
+                  aria-hidden
+                  importantForAccessibility="no"
+                />
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Txt variant="bodyStrong" tom={ativo ? "primary" : "normal"}>
+                    {ROTULO_ESCOPO[e]}
+                  </Txt>
+                  <Txt variant="caption" tom="muted">
+                    {detalhe(e)}
+                  </Txt>
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+      {rodape}
+      {erro && (
+        <Txt variant="label" tom="danger">
+          {erro}
+        </Txt>
+      )}
+    </Folha>
   );
 }
 

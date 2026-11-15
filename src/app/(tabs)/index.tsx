@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { View } from "react-native";
 import { CalendarioMes } from "@/components/calendario-mes";
 import { ExcluirPlantao } from "@/components/escopo-serie";
+import { Folha } from "@/components/folha";
 import { Deslizavel } from "@/components/gestos";
 import { Screen } from "@/components/screen";
 import { Button, Card, EmptyState, Icone, Pill, Secao, Txt } from "@/components/ui";
@@ -80,6 +81,8 @@ export default function Agenda() {
   const semLocais = locais.status === "pronto" && locais.dados.length === 0;
 
   const [excluindo, setExcluindo] = useState<PlantaoComLocal | null>(null);
+  // Dia em que o usuario segurou o dedo: abre a folha "incluir plantao".
+  const [menuDia, setMenuDia] = useState<number | null>(null);
 
   // Ao mudar de mes, o dia selecionado vai junto: o de hoje no mes atual, senao o
   // dia 1. Sem isso a lista de baixo continuaria mostrando o dia de outro mes.
@@ -88,19 +91,23 @@ export default function Agenda() {
     setSelecionado(inicioDoMes(ms) === inicioDoMes(hoje) ? hoje : inicioDoMes(ms));
   };
 
-  const novo = () =>
-    semLocais
-      ? router.push("/local/novo")
-      : router.push({ pathname: "/plantao/[id]", params: { id: "novo", dia: chaveSel } });
+  const novoNoDia = (dia: string) =>
+    semLocais ? router.push("/local/novo") : router.push({ pathname: "/plantao/[id]", params: { id: "novo", dia } });
+  const novo = () => novoNoDia(chaveSel);
 
   return (
     <Screen
       titulo="Agenda"
       subtitulo={resumo.plantoes > 0 ? `${resumo.plantoes} ${resumo.plantoes === 1 ? "plantão" : "plantões"} no mês` : "Seus plantões do mês"}
       direita={
-        <Button icone="plus" compacto onPress={novo}>
-          Novo
-        </Button>
+        <View style={{ flexDirection: "row", gap: t.spacing.sm }}>
+          <Button icone="map-marker-plus-outline" variant="secondary" compacto onPress={() => router.push("/local/novo")}>
+            Local
+          </Button>
+          <Button icone="plus" compacto onPress={novo}>
+            Novo
+          </Button>
+        </View>
       }
     >
       <Card>
@@ -112,6 +119,11 @@ export default function Agenda() {
             setReferencia(ms);
           }}
           onTrocarMes={trocarMes}
+          onSegurar={(ms) => {
+            setSelecionado(ms);
+            setReferencia(ms);
+            setMenuDia(ms);
+          }}
           marcadores={marcadores}
         />
       </Card>
@@ -140,7 +152,7 @@ export default function Agenda() {
               descricao={
                 semLocais
                   ? "O valor, os descontos e a data em que você recebe vêm do local."
-                  : "Toque em Novo para lançar um plantão nesta data."
+                  : "Toque em Novo — ou segure o dia no calendário — para lançar um plantão nesta data."
               }
             >
               <Button icone={semLocais ? "map-marker-plus-outline" : "plus"} onPress={novo}>
@@ -165,6 +177,35 @@ export default function Agenda() {
           ))}
         </View>
       </View>
+
+      {menuDia !== null && (
+        <Folha
+          titulo={`${formatDiaSemanaLongo(menuDia)}, ${formatData(menuDia)}`}
+          subtitulo={(() => {
+            const n = lista.filter((p) => chaveDia(p.inicio) === chaveDia(menuDia)).length;
+            return n === 0 ? "Nenhum plantão neste dia" : `${n} ${n === 1 ? "plantão" : "plantões"} neste dia`;
+          })()}
+          onFechar={() => setMenuDia(null)}
+          acoes={
+            <View style={{ gap: t.spacing.sm }}>
+              <Button
+                icone={semLocais ? "map-marker-plus-outline" : "plus"}
+                largura="cheia"
+                onPress={() => {
+                  const dia = chaveDia(menuDia);
+                  setMenuDia(null);
+                  novoNoDia(dia);
+                }}
+              >
+                {semLocais ? "Cadastrar um local primeiro" : "Incluir plantão"}
+              </Button>
+              <Button variant="secondary" largura="cheia" onPress={() => setMenuDia(null)}>
+                Fechar
+              </Button>
+            </View>
+          }
+        />
+      )}
 
       {excluindo && (
         <ExcluirPlantao

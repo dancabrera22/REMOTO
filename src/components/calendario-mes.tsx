@@ -36,6 +36,7 @@ export function DiaCelula({
   fimDeSemana = false,
   cores = [],
   onPress,
+  onSegurar,
 }: {
   dia: number;
   selecionado?: boolean;
@@ -44,6 +45,8 @@ export function DiaCelula({
   fimDeSemana?: boolean;
   cores?: readonly string[];
   onPress?: () => void;
+  /** Segurar o dedo no dia. Tambem vira uma acao para leitores de tela. */
+  onSegurar?: () => void;
 }) {
   const t = useTheme();
   const excedente = cores.length - MAX_PONTOS;
@@ -51,9 +54,13 @@ export function DiaCelula({
   return (
     <Pressable
       onPress={onPress}
+      onLongPress={onSegurar}
+      delayLongPress={380}
       disabled={!onPress}
       role="button"
       aria-selected={selecionado}
+      accessibilityActions={onSegurar ? [{ name: "incluir", label: "Incluir plantão neste dia" }] : undefined}
+      onAccessibilityAction={(e) => e.nativeEvent.actionName === "incluir" && onSegurar?.()}
       style={{ flex: 1, alignItems: "center", paddingVertical: 3 }}
     >
       <View
@@ -118,12 +125,15 @@ export function CalendarioMes({
   selecionadoMs,
   onSelecionar,
   onTrocarMes,
+  onSegurar,
   marcadores,
 }: {
   referenciaMs: number;
   selecionadoMs: number | null;
   onSelecionar: (ms: number) => void;
   onTrocarMes: (ms: number) => void;
+  /** Segurar o dedo num dia (a agenda oferece incluir um plantao ali). */
+  onSegurar?: (ms: number) => void;
   marcadores?: Record<string, MarcadorDia>;
 }) {
   const t = useTheme();
@@ -193,6 +203,7 @@ export function CalendarioMes({
                 fimDeSemana={celula.fimDeSemana}
                 cores={marcadores?.[celula.chave]?.cores}
                 onPress={() => onSelecionar(celula.ms)}
+                onSegurar={onSegurar ? () => onSegurar(celula.ms) : undefined}
               />
             ))}
           </View>

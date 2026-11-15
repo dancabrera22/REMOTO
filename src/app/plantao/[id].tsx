@@ -281,6 +281,20 @@ function Formulario({
   const [escopoAberto, setEscopoAberto] = useState(false);
   const [excluindoSerie, setExcluindoSerie] = useState(false);
 
+  // Cadastrar um local sem sair do plantao: guardamos quais locais existiam, e o que
+  // aparecer a mais ao voltar e o que a pessoa acabou de criar — ja vem escolhido.
+  const [locaisAntes, setLocaisAntes] = useState<Set<number> | null>(null);
+  useEffect(() => {
+    if (!locaisAntes) return;
+    const novo = locais.find((l) => !locaisAntes.has(l.id));
+    if (novo) {
+      escolheLocal(novo);
+      setLocaisAntes(null);
+    }
+    // escolheLocal so usa setters estaveis
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locais, locaisAntes]);
+
   const local = locais.find((l) => l.id === localId) ?? null;
 
   /* ------------------------------- horario ------------------------------- */
@@ -522,6 +536,27 @@ function Formulario({
                   onPress={() => escolheLocal(l)}
                 />
               ))}
+              <Pressable
+                role="button"
+                aria-label="Cadastrar novo local"
+                onPress={() => {
+                  setLocaisAntes(new Set(locais.map((l) => l.id)));
+                  router.push("/local/novo");
+                }}
+                style={({ pressed }) => ({
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderWidth: 1.5,
+                  borderStyle: "dashed",
+                  borderColor: t.colors.primary,
+                  backgroundColor: pressed ? t.colors.primarySoft : "transparent",
+                })}
+              >
+                <Icone name="plus" size={22} color={t.colors.primary} aria-hidden importantForAccessibility="no" />
+              </Pressable>
             </View>
             {local && local.arquivadoEm !== null && (
               <Txt variant="caption" tom="warning">
