@@ -231,6 +231,14 @@ export function testes() {
   igual("cancelado e trocado nao entram", r.bruto, 300000);
   igual("plantao das 23:59 do ultimo dia do mes anterior fica fora", r.plantoes, 3);
   igual("so o do dia 30 segue agendado e ja nao terminou", r.aConfirmar, 0);
+  igual("sem nenhum pagamento, recebido e zero", r.recebido, 0);
+  const comPago = resumoDoMes(
+    [{ ...mes[0], pagoEm: instante(2026, 10, 20) }, { ...mes[1], pagoEm: null }, { ...mes[2] }],
+    instante(2026, 10, 14),
+    instante(2026, 10, 20),
+  );
+  igual("recebido soma o liquido so dos pagos (100.000 menos 10%)", comPago.recebido, 90000);
+  igual("o total do mes nao muda por causa do pagamento", comPago.liquido, 270000);
 
   const aposFim = resumoDoMes(mes, instante(2026, 10, 14), instante(2026, 11, 2));
   igual("agendado que ja terminou aparece como a confirmar", aposFim.aConfirmar, 1);

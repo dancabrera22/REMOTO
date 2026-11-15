@@ -268,19 +268,23 @@ export interface ResumoMes {
   minutos: number;
   bruto: Centavos;
   liquido: Centavos;
+  /** Parte do liquido que ja caiu na conta (plantoes marcados como pagos). */
+  recebido: Centavos;
   /** Ja terminaram e seguem "agendado": aguardam confirmacao. */
   aConfirmar: number;
 }
 
 /** Soma o que acontece no mes de `referenciaMs` (pelo dia de inicio de cada plantao). */
 export function resumoDoMes(
-  plantoes: readonly Pick<PlantaoInput, "inicio" | "fim" | "valorBruto" | "descontoPercentual" | "status">[],
+  plantoes: readonly (Pick<PlantaoInput, "inicio" | "fim" | "valorBruto" | "descontoPercentual" | "status"> & {
+    pagoEm?: number | null;
+  })[],
   referenciaMs: number,
   agora = Date.now(),
 ): ResumoMes {
   const de = inicioDoMes(referenciaMs);
   const ate = fimDoMes(referenciaMs);
-  const r: ResumoMes = { plantoes: 0, minutos: 0, bruto: 0, liquido: 0, aConfirmar: 0 };
+  const r: ResumoMes = { plantoes: 0, minutos: 0, bruto: 0, liquido: 0, recebido: 0, aConfirmar: 0 };
 
   for (const p of plantoes) {
     if (p.inicio < de || p.inicio > ate || !contaNoValor(p.status)) continue;
@@ -288,6 +292,7 @@ export function resumoDoMes(
     r.minutos += minutosEntre(p.inicio, p.fim);
     r.bruto += p.valorBruto;
     r.liquido += liquidoDoPlantao(p);
+    if (p.pagoEm != null) r.recebido += liquidoDoPlantao(p);
     if (precisaConfirmar(p, agora)) r.aConfirmar += 1;
   }
   return r;

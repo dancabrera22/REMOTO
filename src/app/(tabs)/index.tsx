@@ -1,21 +1,27 @@
 import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { View } from "react-native";
 import { CalendarioMes } from "@/components/calendario-mes";
+import { ExcluirPlantao } from "@/components/escopo-serie";
+import { Deslizavel } from "@/components/gestos";
 import { Screen } from "@/components/screen";
-import { Button, Card, EmptyState, Pill, Secao, Txt } from "@/components/ui";
+import { Button, Card, EmptyState, Icone, Pill, Secao, Txt } from "@/components/ui";
 import { listaLocais } from "@/db/locais";
-import { listaPlantoesPeriodo, mudaStatusPlantao } from "@/db/plantoes";
-import { useBanco, useConsulta, useInvalidar } from "@/db/provider";
+import { listaPlantoesPeriodo, marcaPagamento, mudaStatusPlantao } from "@/db/plantoes";
+import { executorDe } from "@/db/client";
+import { useBanco, useConsulta, useEstadoBanco, useInvalidar } from "@/db/provider";
+import { garanteHorizonte } from "@/db/series";
 import {
   chaveDia,
   diasRelativos,
   fimDoDia,
   formatData,
+  formatDataCurta,
   formatDiaSemanaLongo,
   formatDuracao,
   gradeDoMes,
   inicioDoDia,
+  inicioDoMes,
 } from "@/lib/datetime";
 import { formatBRL } from "@/lib/money";
 import {
@@ -45,6 +51,22 @@ export default function Agenda() {
     return [grade[0].ms, fimDoDia(grade[grade.length - 1].ms)] as const;
   }, [referencia]);
 
+  const estadoBanco = useEstadoBanco();
+  const invalidar = useInvalidar();
+
+  // Escalas sem data final so tem plantoes ate onde a agenda ja olhou: ao abrir
+  // um mes mais adiante, ela cria os que faltam e a lista se atualiza.
+  useEffect(() => {
+    if (estadoBanco.status !== "pronto") return;
+    let vivo = true;
+    garanteHorizonte(executorDe(estadoBanco.db), ate)
+      .then((criados) => vivo && criados > 0 && invalidar())
+      .catch(() => undefined);
+    return () => {
+      vivo = false;
+    };
+  }, [estadoBanco, ate, invalidar]);
+
   const plantoes = useConsulta((db) => listaPlantoesPeriodo(db, de, ate), [de, ate]);
   const locais = useConsulta((db) => listaLocais(db, { arquivados: false }));
 
@@ -56,6 +78,15 @@ export default function Agenda() {
   const doDia = lista.filter((p) => chaveDia(p.inicio) === chaveSel);
 
   const semLocais = locais.status === "pronto" && locais.dados.length === 0;
+
+  const [excluindo, setExcluindo] = useState<PlantaoComLocal | null>(null);
+
+  // Ao mudar de mes, o dia selecionado vai junto: o de hoje no mes atual, senao o
+  // dia 1. Sem isso a lista de baixo continuaria mostrando o dia de outro mes.
+  const trocarMes = (ms: number) => {
+    setReferencia(ms);
+    setSelecionado(inicioDoMes(ms) === inicioDoMes(hoje) ? hoje : inicioDoMes(ms));
+  };
 
   const novo = () =>
     semLocais
@@ -80,7 +111,7 @@ export default function Agenda() {
             setSelecionado(ms);
             setReferencia(ms);
           }}
-          onTrocarMes={setReferencia}
+          onTrocarMes={trocarMes}
           marcadores={marcadores}
         />
       </Card>
@@ -121,14 +152,30 @@ export default function Agenda() {
 
         <View style={{ gap: t.spacing.md }}>
           {doDia.map((p) => (
-            <CartaoPlantao
+            <Deslizavel
               key={p.id}
-              plantao={p}
-              onPress={() => router.push({ pathname: "/plantao/[id]", params: { id: String(p.id) } })}
-            />
+              onExcluir={() => setExcluindo(p)}
+              rotuloAcessivel={`Excluir plantão de ${p.local.nome}`}
+            >
+              <CartaoPlantao
+                plantao={p}
+                onPress={() => router.push({ pathname: "/plantao/[id]", params: { id: String(p.id) } })}
+              />
+            </Deslizavel>
           ))}
         </View>
       </View>
+
+      {excluindo && (
+        <ExcluirPlantao
+          plantao={excluindo}
+          onFechar={() => setExcluindo(null)}
+          onExcluido={() => {
+            setExcluindo(null);
+            invalidar();
+          }}
+        />
+      )}
 
       <Card>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
@@ -144,6 +191,33 @@ export default function Agenda() {
           <Metrica rotulo="Horas" valor={resumo.minutos ? formatDuracao(resumo.minutos) : "0h"} />
           <Metrica rotulo="Líquido" valor={formatBRL(resumo.liquido)} grande />
         </View>
+        {resumo.recebido > 0 && (
+          <View
+            style={{
+              flexDirection: "row",
+              gap: t.spacing.lg,
+              marginTop: t.spacing.md,
+              paddingTop: t.spacing.md,
+              borderTopWidth: 1,
+              borderTopColor: t.colors.border,
+            }}
+          >
+            <View style={{ flex: 1, gap: 2 }}>
+              <Txt variant="caption" tom="muted">
+                Já recebido
+              </Txt>
+              <Txt variant="bodyStrong" tom="success">
+                {formatBRL(resumo.recebido)}
+              </Txt>
+            </View>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Txt variant="caption" tom="muted">
+                A receber
+              </Txt>
+              <Txt variant="bodyStrong">{formatBRL(resumo.liquido - resumo.recebido)}</Txt>
+            </View>
+          </View>
+        )}
       </Card>
     </Screen>
   );
@@ -190,9 +264,15 @@ function CartaoPlantao({ plantao: p, onPress }: { plantao: PlantaoComLocal; onPr
         <View style={{ width: 6, backgroundColor: p.local.cor }} />
         <View style={{ flex: 1, padding: t.spacing.lg, gap: t.spacing.sm }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: t.spacing.sm }}>
-            <Txt variant="bodyStrong" numberOfLines={1} style={{ flex: 1 }}>
+            <Txt variant="bodyStrong" numberOfLines={1} style={{ flexShrink: 1 }}>
               {p.local.apelido ? `${p.local.nome} · ${p.local.apelido}` : p.local.nome}
             </Txt>
+            {p.serieId !== null && (
+              <View accessibilityLabel="Plantão de escala (se repete)" accessible>
+                <Icone name="repeat" size={15} color={t.colors.textFaint} />
+              </View>
+            )}
+            <View style={{ flex: 1 }} />
             <Pill tom={TOM_STATUS[p.status]}>{ROTULO_STATUS[p.status]}</Pill>
           </View>
 
@@ -218,6 +298,26 @@ function CartaoPlantao({ plantao: p, onPress }: { plantao: PlantaoComLocal; onPr
             <Txt variant="caption" tom="muted" numberOfLines={2}>
               {p.observacao}
             </Txt>
+          )}
+
+          {p.pagoEm !== null && (
+            <Pill tom="success" icone="check-circle-outline">
+              {`Pago em ${formatDataCurta(p.pagoEm)}`}
+            </Pill>
+          )}
+
+          {conta && p.status === "realizado" && p.pagoEm === null && (
+            <Button
+              variant="secondary"
+              compacto
+              icone="cash-check"
+              onPress={async () => {
+                await marcaPagamento(db, p.id, Date.now());
+                invalidar();
+              }}
+            >
+              Marcar como pago
+            </Button>
           )}
 
           {confirmar && (

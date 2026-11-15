@@ -91,7 +91,8 @@ function criaExecutor(db: Banco, dentroDeTransacao: boolean): Executor {
         // serve: la o app so roda em desenvolvimento e os testes, onde uma
         // acao de cada vez acontece.
         await db.withTransactionAsync(async () => {
-          resultado = await fn(ex);
+          // Um executor "ja dentro": transacao chamada de novo aqui so executa.
+          resultado = await fn(criaExecutor(db, true));
           concluiu = true;
         });
       } else {

@@ -21,6 +21,11 @@ import {
   temDia,
   temErrosSerie,
   validaSerie,
+  diasDoRascunho,
+  formatDiaCurto,
+  rascunhoDaRegra,
+  rascunhoInicial,
+  regraDoRascunho,
 } from "../src/lib/recorrencia.ts";
 import { check, igual, report } from "./helpers.mjs";
 
@@ -173,6 +178,43 @@ export function testes() {
   igual("o status pode ser pedido", plantaoDaSerie(modelo, d(2026, 11, 14), "realizado").status, "realizado");
 
   check("as escalas comuns cobrem 12x36, 24x48 e 24x72", ESCALAS_COMUNS.map((e) => e.cada).join() === "2,3,4");
+
+  /* ------------------------------ rascunho do formulario ------------------------------ */
+
+  const terca = d(2026, 11, 17);
+  const nunca = rascunhoInicial();
+  igual("nao repete: nao ha regra", regraDoRascunho(nunca, terca), null);
+
+  const semTocar = { ...nunca, tipo: "semanal" };
+  igual("semanal sem tocar nos dias acompanha o dia da data (terca)", regraDoRascunho(semTocar, terca).diasSemana, 1 << 2);
+  igual("... e se a data muda para sabado, o dia muda junto", regraDoRascunho(semTocar, d(2026, 11, 21)).diasSemana, 1 << 6);
+  igual("diasDoRascunho usa a data enquanto nada foi escolhido", diasDoRascunho(semTocar, terca), 1 << 2);
+  igual("... e a escolha depois de tocar", diasDoRascunho({ ...semTocar, diasSemana: 0b0111110 }, terca), 0b0111110);
+
+  igual("mensal sem tocar no dia usa o dia da data", regraDoRascunho({ ...nunca, tipo: "mensal" }, terca).diaDoMes, 17);
+  igual("mensal com dia digitado usa o digitado", regraDoRascunho({ ...nunca, tipo: "mensal", diaDoMes: "31" }, terca).diaDoMes, 31);
+
+  const ciclo = regraDoRascunho({ ...nunca, tipo: "intervalo", cada: "2", diasSemana: 0b101, diaDoMes: "9" }, terca);
+  check("ciclo nao carrega dias da semana nem dia do mes", ciclo.diasSemana === 0 && ciclo.diaDoMes === null && ciclo.cada === 2);
+
+  igual("passo vazio vira 0 (e a validacao recusa)", regraDoRascunho({ ...nunca, tipo: "intervalo", cada: "" }, terca).cada, 0);
+  check(
+    "... recusado por validaSerie",
+    temErrosSerie(validaSerie({ ...modelo, regra: regraDoRascunho({ ...nunca, tipo: "intervalo", cada: "" }, terca) })),
+  );
+  igual("a data inicial vira meia-noite", regraDoRascunho(semTocar, instante(2026, 10, 17, 15, 40)).inicioDia, terca);
+  igual("a data final tambem", regraDoRascunho({ ...semTocar, fimDia: instante(2026, 10, 20, 9) }, terca).fimDia, d(2026, 11, 20));
+
+  // Ida e volta: editar uma escala existente nao deve mudar nada sozinho.
+  for (const regra of [
+    { tipo: "semanal", diasSemana: 0b0101010, cada: 2, diaDoMes: null, inicioDia: terca, fimDia: d(2027, 3, 1) },
+    { tipo: "intervalo", diasSemana: 0, cada: 4, diaDoMes: null, inicioDia: terca, fimDia: null },
+    { tipo: "mensal", diasSemana: 0, cada: 3, diaDoMes: 31, inicioDia: terca, fimDia: null },
+  ]) {
+    igual(`ida e volta (${regra.tipo}) preserva a regra`, JSON.stringify(regraDoRascunho(rascunhoDaRegra(regra), regra.inicioDia)), JSON.stringify(regra));
+  }
+
+  igual("data curta da previa", formatDiaCurto(terca), "ter 17/11");
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

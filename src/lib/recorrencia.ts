@@ -12,6 +12,7 @@
 import {
   diasNoMes,
   formatData,
+  formatDiaSemana,
   inicioDoDia,
   instante,
   somaDias,
@@ -287,3 +288,66 @@ export const ESCALAS_COMUNS = [
   { id: "24x48", rotulo: "24×48", detalhe: "trabalha 24 h, folga 48 h: a cada 3 dias", cada: 3 },
   { id: "24x72", rotulo: "24×72", detalhe: "trabalha 24 h, folga 72 h: a cada 4 dias", cada: 4 },
 ] as const;
+
+/* ------------------------- rascunho do formulario ------------------------- */
+
+export type TipoRascunho = "nunca" | TipoRecorrencia;
+
+/**
+ * O que o formulario de repeticao guarda enquanto a pessoa digita: numeros como
+ * texto (um campo vazio nao pode virar 0 no meio da digitacao) e escolhas que
+ * ainda nao foram tocadas como `null`/vazio, para acompanharem a data do
+ * plantao: trocar o dia no formulario nao deixa "toda terca" para tras.
+ */
+export interface RascunhoRepeticao {
+  tipo: TipoRascunho;
+  /** `null` = so o dia da semana da data do plantao. */
+  diasSemana: number | null;
+  cada: string;
+  /** Vazio = o dia do mes da data do plantao. */
+  diaDoMes: string;
+  fimDia: number | null;
+}
+
+export function rascunhoInicial(): RascunhoRepeticao {
+  return { tipo: "nunca", diasSemana: null, cada: "1", diaDoMes: "", fimDia: null };
+}
+
+/** O rascunho de uma escala que ja existe, para edita-la no mesmo formulario. */
+export function rascunhoDaRegra(r: RegraRecorrencia): RascunhoRepeticao {
+  return {
+    tipo: r.tipo,
+    diasSemana: r.tipo === "semanal" ? r.diasSemana : null,
+    cada: String(r.cada),
+    diaDoMes: r.tipo === "mensal" && r.diaDoMes !== null ? String(r.diaDoMes) : "",
+    fimDia: r.fimDia,
+  };
+}
+
+/** Dias da semana de fato escolhidos (a data do plantao, enquanto nada foi tocado). */
+export function diasDoRascunho(r: RascunhoRepeticao, dataMs: number): number {
+  return r.diasSemana ?? 1 << new Date(dataMs).getDay();
+}
+
+/**
+ * A regra que o rascunho representa a partir de `inicioDia`, ou `null` quando
+ * nao repete. Campos invalidos viram valores que `validaSerie` recusa (passo 0),
+ * em vez de serem "corrigidos" em silencio.
+ */
+export function regraDoRascunho(r: RascunhoRepeticao, inicioDia: number): RegraRecorrencia | null {
+  if (r.tipo === "nunca") return null;
+  const inicio = inicioDoDia(inicioDia);
+  return {
+    tipo: r.tipo,
+    diasSemana: r.tipo === "semanal" ? diasDoRascunho(r, inicio) : 0,
+    cada: r.cada.trim() === "" ? 0 : Number(r.cada),
+    diaDoMes: r.tipo === "mensal" ? (r.diaDoMes.trim() === "" ? new Date(inicio).getDate() : Number(r.diaDoMes)) : null,
+    inicioDia: inicio,
+    fimDia: r.fimDia === null ? null : inicioDoDia(r.fimDia),
+  };
+}
+
+/** "ter 17/11" — as datas da previa de uma escala. */
+export function formatDiaCurto(ms: number): string {
+  return `${formatDiaSemana(ms)} ${formatData(ms).slice(0, 5)}`;
+}

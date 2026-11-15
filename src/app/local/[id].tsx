@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DiaCelula } from "@/components/calendario-mes";
@@ -13,6 +13,7 @@ import {
 } from "@/components/form";
 import { Button, Card, Icone, Secao, Txt } from "@/components/ui";
 import { atualizaLocal, arquivaLocal, buscaLocal, criaLocal, listaLocais } from "@/db/locais";
+import { contaSeriesAtivasDoLocal } from "@/db/series";
 import { useBanco, useConsulta, useInvalidar } from "@/db/provider";
 import { formatData, formatDiaSemana, inicioDoDia, somaDias } from "@/lib/datetime";
 import {
@@ -205,6 +206,20 @@ function Formulario({
   const [salvando, setSalvando] = useState(false);
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [confirmaArquivar, setConfirmaArquivar] = useState(false);
+  const [escalasAtivas, setEscalasAtivas] = useState(0);
+
+  // Escalas do local param de criar plantoes novos enquanto ele estiver arquivado:
+  // quem arquiva precisa saber disso antes, nao depois.
+  useEffect(() => {
+    if (!confirmaArquivar || !editando) return;
+    let vivo = true;
+    contaSeriesAtivasDoLocal(db, editando.id)
+      .then((n) => vivo && setEscalasAtivas(n))
+      .catch(() => undefined);
+    return () => {
+      vivo = false;
+    };
+  }, [confirmaArquivar, editando, db]);
 
   const entrada = useMemo<LocalInput>(
     () => ({
@@ -528,6 +543,13 @@ function Formulario({
                     O local some das listas, mas os plantões já lançados nele continuam no histórico. Você pode
                     restaurá-lo depois.
                   </Txt>
+                  {escalasAtivas > 0 && (
+                    <Txt variant="label" tom="warning" style={{ marginBottom: t.spacing.md }}>
+                      {escalasAtivas === 1
+                        ? "Este local tem 1 escala ativa: ela deixa de criar plantões novos enquanto ele estiver arquivado."
+                        : `Este local tem ${escalasAtivas} escalas ativas: elas deixam de criar plantões novos enquanto ele estiver arquivado.`}
+                    </Txt>
+                  )}
                   <View style={{ flexDirection: "row", gap: t.spacing.sm }}>
                     <Button variant="danger" onPress={arquivar} disabled={salvando}>
                       Arquivar

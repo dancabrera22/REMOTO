@@ -4,6 +4,8 @@ import { KeyboardAvoidingView, Pressable, ScrollView, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CalendarioMes } from "@/components/calendario-mes";
 import { Campo, CampoDinheiro, CampoHora, CampoTexto, Chip, Segmentado } from "@/components/form";
+import { EscopoModal, ExcluirPlantao } from "@/components/escopo-serie";
+import { Repeticao } from "@/components/repeticao";
 import { Button, Card, Icone, Pill, Secao, Txt } from "@/components/ui";
 import { listaLocais } from "@/db/locais";
 import {
@@ -12,13 +14,16 @@ import {
   criaPlantao,
   excluiPlantao,
   listaPlantoesPeriodo,
+  marcaPagamento,
   ultimoLocalUsado,
 } from "@/db/plantoes";
+import { buscaSerie, criaSerie, editaSerie, type EscopoSerie } from "@/db/series";
 import { useBanco, useConsulta, useInvalidar } from "@/db/provider";
 import {
   deChaveDia,
   fimDoDia,
   formatData,
+  formatDataCurta,
   formatDiaSemana,
   formatDiaSemanaLongo,
   inicioDoDia,
@@ -46,6 +51,17 @@ import {
   type PlantaoInput,
   type StatusPlantao,
 } from "@/lib/plantoes";
+import {
+  descreveRecorrencia,
+  rascunhoDaRegra,
+  rascunhoInicial,
+  regraDoRascunho,
+  validaSerie,
+  type ModeloSerie,
+  type RascunhoRepeticao,
+  type RegraRecorrencia,
+  type Serie,
+} from "@/lib/recorrencia";
 import { useTheme } from "@/theme";
 
 const ROTULOS_ERRO: Record<string, string> = {
@@ -74,7 +90,8 @@ export default function TelaPlantao() {
       editandoId !== null && Number.isInteger(editandoId) ? buscaPlantao(db, editandoId) : null,
       ultimoLocalUsado(db),
     ]);
-    return { ativos, arquivados, plantao, ultimo };
+    const serie = plantao?.serieId != null ? await buscaSerie(db, plantao.serieId) : null;
+    return { ativos, arquivados, plantao, ultimo, serie };
   }, [editandoId]);
 
   const invalido = editandoId !== null && !Number.isInteger(editandoId);
@@ -104,7 +121,7 @@ export default function TelaPlantao() {
     );
   }
 
-  const { ativos, arquivados, plantao, ultimo } = dados.dados;
+  const { ativos, arquivados, plantao, ultimo, serie } = dados.dados;
 
   // Ao editar, o local do plantao continua escolhivel mesmo se foi arquivado depois.
   const selecionaveis = [...ativos];
@@ -125,6 +142,7 @@ export default function TelaPlantao() {
     <Formulario
       key={editandoId ?? "novo"}
       editando={plantao}
+      serie={serie}
       locais={selecionaveis}
       localInicial={localInicial}
       diaInicial={dia && /^\d{4}-\d{2}-\d{2}$/.test(dia) ? deChaveDia(dia) : inicioDoDia(Date.now())}
@@ -194,14 +212,28 @@ function Moldura({
 /* Formulario                                                                  */
 /* -------------------------------------------------------------------------- */
 
+/** Duas regras iguais para o que importa a quem edita (o inicio e decidido a parte). */
+function mesmaRegra(a: RegraRecorrencia, b: RegraRecorrencia): boolean {
+  return (
+    a.tipo === b.tipo &&
+    a.cada === b.cada &&
+    a.diasSemana === b.diasSemana &&
+    a.diaDoMes === b.diaDoMes &&
+    a.fimDia === b.fimDia
+  );
+}
+
 function Formulario({
   editando,
+  serie,
   locais,
   localInicial,
   diaInicial,
   voltar,
 }: {
   editando: PlantaoComLocal | null;
+  /** A escala do plantao que esta sendo editado, se ele for de escala. */
+  serie: Serie | null;
   locais: Local[];
   localInicial: number | null;
   diaInicial: number;
@@ -240,6 +272,14 @@ function Formulario({
   const [salvando, setSalvando] = useState(false);
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [confirmaExcluir, setConfirmaExcluir] = useState(false);
+
+  // Repeticao: ao lancar, descreve a escala nova; ao editar um plantao de escala,
+  // e a regra dela. Plantao avulso ja lancado nao vira escala por aqui.
+  const [rep, setRep] = useState<RascunhoRepeticao>(serie ? rascunhoDaRegra(serie.regra) : rascunhoInicial());
+  const [repAberta, setRepAberta] = useState(false);
+  const [pago, setPago] = useState(editando?.pagoEm != null);
+  const [escopoAberto, setEscopoAberto] = useState(false);
+  const [excluindoSerie, setExcluindoSerie] = useState(false);
 
   const local = locais.find((l) => l.id === localId) ?? null;
 
@@ -313,25 +353,97 @@ function Formulario({
   const { erros, avisos } = validacao;
   const mostra = (campo: keyof typeof erros) => (tentou ? erros[campo] : undefined);
 
+  /* ------------------------------- repeticao ------------------------------- */
+
+  const regra = useMemo(
+    () => (editando && !serie ? null : regraDoRascunho(rep, serie ? serie.regra.inicioDia : dia)),
+    [rep, dia, editando, serie],
+  );
+  const modelo: ModeloSerie | null =
+    local && horaEntrada !== null && horaSaida !== null
+      ? {
+          localId: local.id,
+          inicioMin: horaEntrada,
+          fimMin: horaSaida,
+          valorBruto: valor,
+          descontoPercentual: descontoPct,
+          observacao: observacao.trim() || null,
+        }
+      : null;
+  const serieInput = modelo && regra ? { ...modelo, regra } : null;
+  const errosSerie = serieInput ? validaSerie(serieInput) : {};
+  const errosRepeticao = {
+    ...(errosSerie.diasSemana ? { diasSemana: errosSerie.diasSemana } : {}),
+    ...(errosSerie.cada ? { cada: errosSerie.cada } : {}),
+    ...(errosSerie.diaDoMes ? { diaDoMes: errosSerie.diaDoMes } : {}),
+    ...(errosSerie.fimDia ? { fimDia: errosSerie.fimDia } : {}),
+  };
+  const temErroRepeticao = Object.keys(errosRepeticao).length > 0;
+
+  // O que o usuario mexeu, comparado com o plantao COMO ELE ESTAVA (e nao com o modelo
+  // da escala): um plantao ja ajustado a mao nao deve perguntar nada se nada mudou.
+  const mudouModelo =
+    Boolean(editando && serie && modelo) &&
+    (modelo!.localId !== editando!.localId ||
+      modelo!.inicioMin !== minutosDoDia(editando!.inicio) ||
+      modelo!.fimMin !== minutosDoDia(editando!.fim) ||
+      modelo!.valorBruto !== editando!.valorBruto ||
+      modelo!.descontoPercentual !== editando!.descontoPercentual ||
+      (modelo!.observacao ?? null) !== (editando!.observacao ?? null));
+  const mudouRegra = Boolean(serie && regra && !mesmaRegra(regra, serie.regra));
+
   async function salvar() {
     setTentou(true);
     setMensagem(null);
-    if (!input || temErrosPlantao(erros)) return;
+    if (!input || temErrosPlantao(erros) || temErroRepeticao) return;
+
+    // Mexeu no que vale para a escala toda: pergunta o alcance antes de gravar.
+    if (editando && serie && (mudouModelo || mudouRegra)) {
+      setEscopoAberto(true);
+      return;
+    }
 
     setSalvando(true);
     try {
-      if (editando) {
-        const ok = await atualizaPlantao(db, editando.id, input);
-        if (!ok) throw new Error("Este plantão não existe mais.");
-      } else {
-        await criaPlantao(db, input);
-      }
+      await grava(null);
       invalidar();
       voltar();
     } catch (erro) {
       setMensagem(erro instanceof Error ? erro.message : "Não consegui salvar.");
       setSalvando(false);
     }
+  }
+
+  /** `escopo` so existe para plantao de escala; `null` = so este (ou plantao avulso). */
+  async function grava(escopo: EscopoSerie | null) {
+    if (!input) return;
+
+    if (!editando) {
+      if (regra && serieInput) {
+        await criaSerie(db, serieInput);
+      } else {
+        const novoId = await criaPlantao(db, input);
+        if (pago) await marcaPagamento(db, novoId, Date.now());
+      }
+      return;
+    }
+
+    // Tudo ou nada: editar a escala e acertar este plantao nao ficam pela metade.
+    await db.transacao(async (ex) => {
+      if (serie && serieInput && (escopo === "proximos" || escopo === "todos")) {
+        await editaSerie(ex, editando.id, escopo, serieInput);
+        // Data e situacao sao deste plantao so; o resto ja veio pela escala.
+        if (inicioDoDia(input.inicio) !== inicioDoDia(editando.inicio) || input.status !== editando.status) {
+          await atualizaPlantao(ex, editando.id, input);
+        }
+      } else {
+        const ok = await atualizaPlantao(ex, editando.id, input);
+        if (!ok) throw new Error("Este plantão não existe mais.");
+      }
+
+      if (pago && editando.pagoEm === null) await marcaPagamento(ex, editando.id, Date.now());
+      else if (!pago && editando.pagoEm !== null) await marcaPagamento(ex, editando.id, null);
+    });
   }
 
   async function excluir() {
@@ -347,9 +459,12 @@ function Formulario({
     }
   }
 
-  const pendencias = Object.entries(erros)
-    .filter(([, v]) => v)
-    .map(([k]) => ROTULOS_ERRO[k] ?? k);
+  const pendencias = [
+    ...Object.entries(erros)
+      .filter(([, v]) => v)
+      .map(([k]) => ROTULOS_ERRO[k] ?? k),
+    ...(temErroRepeticao ? ["repetição"] : []),
+  ];
 
   const liquido = input ? liquidoDoPlantao(input) : 0;
   const recebe = local && intervalo && contaNoValor(status) ? calculaDataRecebimento(local.regra, intervalo.inicio) : null;
@@ -522,6 +637,38 @@ function Formulario({
             )}
           </View>
 
+          {/* -------------------------------- repeticao -------------------------------- */}
+          {!editando && (
+            <View style={{ gap: t.spacing.lg }}>
+              <Secao>Repetição</Secao>
+              <Repeticao valor={rep} onChange={setRep} dataMs={dia} erros={tentou || rep.tipo !== "nunca" ? errosRepeticao : {}} />
+            </View>
+          )}
+
+          {editando && serie && (
+            <View style={{ gap: t.spacing.lg }}>
+              <Secao>Escala</Secao>
+              <Card>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: t.spacing.sm }}>
+                  <Icone name="repeat" size={18} color={t.colors.primary} />
+                  <Txt variant="bodyStrong" style={{ flex: 1 }}>
+                    {descreveRecorrencia(regra ?? serie.regra)}
+                  </Txt>
+                </View>
+                <Txt variant="caption" tom="muted" style={{ marginTop: t.spacing.sm, marginBottom: t.spacing.md }}>
+                  Este plantão faz parte de uma escala. Ao mudar horário, valor ou repetição, você escolhe se vale só
+                  para este, para os próximos ou para todos.
+                </Txt>
+                <Button variant="secondary" compacto icone="calendar-sync-outline" onPress={() => setRepAberta((a) => !a)}>
+                  {repAberta ? "Fechar repetição" : "Alterar repetição"}
+                </Button>
+              </Card>
+              {repAberta && (
+                <Repeticao valor={rep} onChange={setRep} dataMs={dia} erros={errosRepeticao} podeNaoRepetir={false} />
+              )}
+            </View>
+          )}
+
           {/* ---------------------------------- valor ---------------------------------- */}
           <View style={{ gap: t.spacing.lg }}>
             <Secao>Valor</Secao>
@@ -567,20 +714,53 @@ function Formulario({
           </View>
 
           {/* --------------------------------- situacao --------------------------------- */}
-          <View style={{ gap: t.spacing.md }}>
-            <Secao>Situação</Secao>
-            <Segmentado
-              opcoes={STATUS_PLANTAO.map((s) => ({ valor: s, rotulo: ROTULO_STATUS[s] }))}
-              valor={status}
-              onChange={(s) => {
-                setStatus(s);
-                setStatusTocado(true);
-              }}
-            />
-            <Txt variant="caption" tom="muted">
-              {DESCRICAO_STATUS[status]}
-            </Txt>
-          </View>
+          {!(!editando && regra) && (
+            <View style={{ gap: t.spacing.md }}>
+              <Secao>Situação</Secao>
+              <Segmentado
+                opcoes={STATUS_PLANTAO.map((s) => ({ valor: s, rotulo: ROTULO_STATUS[s] }))}
+                valor={status}
+                onChange={(s) => {
+                  setStatus(s);
+                  setStatusTocado(true);
+                  // Cancelado e trocado nao tem o que receber.
+                  if (s !== "realizado") setPago(false);
+                }}
+              />
+              <Txt variant="caption" tom="muted">
+                {DESCRICAO_STATUS[status]}
+              </Txt>
+            </View>
+          )}
+
+          {/* --------------------------------- pagamento --------------------------------- */}
+          {!(!editando && regra) && contaNoValor(status) && (
+            <View style={{ gap: t.spacing.md }}>
+              <Secao>Pagamento</Secao>
+              <Segmentado
+                opcoes={[
+                  { valor: "receber", rotulo: "A receber" },
+                  { valor: "pago", rotulo: "Já recebi" },
+                ]}
+                valor={pago ? "pago" : "receber"}
+                onChange={(v) => {
+                  setPago(v === "pago");
+                  // Quem recebeu, trabalhou: marcar como pago confirma o plantao.
+                  if (v === "pago") {
+                    setStatus("realizado");
+                    setStatusTocado(true);
+                  }
+                }}
+              />
+              <Txt variant="caption" tom="muted">
+                {pago
+                  ? editando?.pagoEm != null
+                    ? `Pago em ${formatDataCurta(editando.pagoEm)}. Já recebido, este plantão fica como realizado.`
+                    : "Vai ficar marcado como pago hoje e como realizado."
+                  : "Ainda não caiu na conta."}
+              </Txt>
+            </View>
+          )}
 
           <Campo rotulo="Observações" opcional erro={mostra("observacao")}>
             <CampoTexto
@@ -615,6 +795,11 @@ function Formulario({
                   {formatDiaSemana(intervalo.inicio)}, {formatData(intervalo.inicio)} ·{" "}
                   {descreveHorario(intervalo.inicio, intervalo.fim)}
                 </Txt>
+                {!editando && regra && !temErroRepeticao && (
+                  <Txt variant="label" tom="primary">
+                    {descreveRecorrencia(regra)}
+                  </Txt>
+                )}
                 {contaNoValor(status) ? (
                   <>
                     <Txt variant="money">{formatBRL(liquido)}</Txt>
@@ -654,11 +839,15 @@ function Formulario({
             )}
 
             <Button largura="cheia" onPress={salvar} disabled={salvando}>
-              {salvando ? "Salvando…" : editando ? "Salvar alterações" : "Lançar plantão"}
+              {salvando ? "Salvando…" : editando ? "Salvar alterações" : regra ? "Criar escala" : "Lançar plantão"}
             </Button>
 
             {editando &&
-              (confirmaExcluir ? (
+              (serie ? (
+                <Button variant="ghost" icone="trash-can-outline" largura="cheia" onPress={() => setExcluindoSerie(true)}>
+                  Excluir este plantão
+                </Button>
+              ) : confirmaExcluir ? (
                 <Card>
                   <Txt variant="bodyStrong">Excluir este plantão?</Txt>
                   <Txt variant="label" tom="muted" style={{ marginTop: 4, marginBottom: t.spacing.md }}>
@@ -682,6 +871,35 @@ function Formulario({
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {escopoAberto && editando && (
+        <EscopoModal
+          plantaoId={editando.id}
+          inicio={editando.inicio}
+          titulo="Aplicar a quais plantões?"
+          acao="editar"
+          escopos={mudouRegra ? ["proximos", "todos"] : ["este", "proximos", "todos"]}
+          rotuloConfirmar="Salvar"
+          tomConfirmar="primary"
+          onFechar={() => setEscopoAberto(false)}
+          onConfirmar={async (escopo) => {
+            await grava(escopo);
+            invalidar();
+            voltar();
+          }}
+        />
+      )}
+
+      {excluindoSerie && editando && (
+        <ExcluirPlantao
+          plantao={editando}
+          onFechar={() => setExcluindoSerie(false)}
+          onExcluido={() => {
+            invalidar();
+            voltar();
+          }}
+        />
+      )}
     </Moldura>
   );
 }

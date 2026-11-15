@@ -8,6 +8,7 @@ import {
   somaMeses,
 } from "@/lib/datetime";
 import { useTheme } from "@/theme";
+import { SO_ROLA_NA_VERTICAL, useDeslizeHorizontal } from "./gestos";
 import { Icone, Txt } from "./ui";
 
 export interface MarcadorDia {
@@ -129,6 +130,9 @@ export function CalendarioMes({
   const semanas = gradeDoMes(referenciaMs);
   const mesAtual = inicioDoMes(Date.now()) === inicioDoMes(referenciaMs);
 
+  // Deslizar para a esquerda avanca o mes; para a direita, volta. As setas continuam.
+  const deslize = useDeslizeHorizontal((direcao) => onTrocarMes(somaMeses(referenciaMs, direcao === "esquerda" ? 1 : -1)));
+
   const seta = (direcao: -1 | 1, nome: "chevron-left" | "chevron-right", rotulo: string) => (
     <Pressable
       onPress={() => onTrocarMes(somaMeses(referenciaMs, direcao))}
@@ -149,7 +153,7 @@ export function CalendarioMes({
   );
 
   return (
-    <View style={{ gap: t.spacing.md }}>
+    <View style={[{ gap: t.spacing.md }, SO_ROLA_NA_VERTICAL]} {...deslize}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
         {seta(-1, "chevron-left", "Mês anterior")}
         <Pressable
