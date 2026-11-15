@@ -54,7 +54,14 @@ cd "$TRAB"
 log "Instalando dependencias (exatamente as do package-lock)"
 npm ci --no-audit --no-fund
 
-log "Gerando o projeto Android nativo"
+# O Android so aceita atualizar por cima uma versao MAIS NOVA, e compara o
+# versionCode. O numero de commits so cresce, entao cada APK novo sempre vence o
+# anterior — sem ninguem lembrar de incrementar na mao.
+CODIGO="$(git -C "$RAIZ" rev-list --count HEAD)"
+node -e 'const fs=require("fs"),j=JSON.parse(fs.readFileSync("app.json","utf8"));
+j.expo.android.versionCode=Number(process.argv[1]);fs.writeFileSync("app.json",JSON.stringify(j,null,2))' "$CODIGO"
+
+log "Gerando o projeto Android nativo (versionCode $CODIGO)"
 npx expo prebuild --platform android --no-install >/dev/null
 
 # ---------------------------------------------------------------------------
