@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { Pressable, TextInput, View, type TextInputProps } from "react-native";
 import { centavosDeDigitos, formatValor, type Centavos } from "@/lib/money";
+import { mascaraHora } from "@/lib/plantoes";
 import { coresLocais, nomeDaCor, useTheme } from "@/theme";
 import { Icone, Txt } from "./ui";
 
@@ -319,4 +320,79 @@ export function SeletorCor({
 
 export function nomeDaCorEscolhida(hex: string): string {
   return nomeDaCor(hex);
+}
+
+/* ---------------------------------- hora ---------------------------------- */
+
+/**
+ * Horario com mascara: digita-se "1900" e aparece "19:00". Os dois pontos
+ * entram sozinhos, entao ninguem precisa procurar a tecla.
+ */
+export function CampoHora({
+  valor,
+  onChange,
+  erro,
+  rotuloAcessivel,
+}: {
+  valor: string;
+  onChange: (texto: string) => void;
+  erro?: boolean;
+  rotuloAcessivel: string;
+}) {
+  return (
+    <CampoTexto
+      value={valor}
+      placeholder="00:00"
+      keyboardType="number-pad"
+      inputMode="numeric"
+      maxLength={5}
+      onChangeText={(texto) => onChange(mascaraHora(texto))}
+      erro={erro}
+      style={{ width: 112, textAlign: "center", fontSize: 20, fontWeight: "600" }}
+      accessibilityLabel={rotuloAcessivel}
+    />
+  );
+}
+
+/* --------------------------------- chips --------------------------------- */
+
+/** Opcao de uma lista de escolha unica, com bolinha de cor (locais) ou so texto. */
+export function Chip({
+  rotulo,
+  ativo,
+  onPress,
+  cor,
+  rotuloAcessivel,
+}: {
+  rotulo: string;
+  ativo: boolean;
+  onPress: () => void;
+  cor?: string;
+  rotuloAcessivel?: string;
+}) {
+  const t = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      role="radio"
+      aria-checked={ativo}
+      aria-label={rotuloAcessivel ?? rotulo}
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: t.spacing.sm,
+        paddingVertical: 10,
+        paddingHorizontal: t.spacing.md,
+        borderRadius: t.radius.pill,
+        borderWidth: ativo ? 2 : 1,
+        borderColor: ativo ? t.colors.primary : t.colors.borderStrong,
+        backgroundColor: ativo ? t.colors.primarySoft : t.colors.surface,
+      }}
+    >
+      {cor && <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: cor }} />}
+      <Txt variant="label" tom={ativo ? "primary" : "normal"} style={ativo ? { fontWeight: "700" } : undefined}>
+        {rotulo}
+      </Txt>
+    </Pressable>
+  );
 }

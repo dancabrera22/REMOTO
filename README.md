@@ -7,29 +7,48 @@ Tudo fica no próprio aparelho, num banco SQLite. Sem servidor, sem conta para
 criar, sem mensalidade — nem valores, nem locais, nem a sua escala saem do
 celular.
 
-> **Etapa 2 de 7 — Locais.** Dá para cadastrar, editar, arquivar e restaurar
-> locais de plantão, cada um com cor, valor padrão, descontos e regra de
-> pagamento — com prévia ao vivo de quanto sobra e de quando cada plantão cai
-> na conta. Lançar plantões vem na Etapa 3; é só ali que o pontinho colorido
-> aparece na agenda. O estado de cada etapa está dentro do app, em **Ajustes**.
+> **Etapa 3 de 7 — Plantões.** Dá para lançar plantões (inclusive noturno e de
+> 24 h), e cada um pinta o dia, na agenda, com a cor do local. A lista do dia
+> mostra o valor líquido e a situação (agendado, realizado, cancelado, trocado),
+> a agenda avisa conflito de horário, e o resumo do mês soma plantões, horas e
+> líquido. O estado de cada etapa está dentro do app, em **Ajustes**.
 
 ---
 
-## Ver no seu celular agora
+## Instalar no celular
 
-Não precisa instalar nada no celular além do **Expo Go**
-([Play Store](https://play.google.com/store/apps/details?id=host.exp.exponent)).
+### Pelo APK (o jeito simples)
+
+1. Baixe o arquivo `.apk` no próprio celular.
+2. Abra-o. O Android vai pedir para permitir a instalação de **apps desconhecidos**
+   para o aplicativo que você usou para abrir (Arquivos, Chrome…): permita.
+3. Se o Google Play Protect avisar que o app não é conhecido, é esperado — ele é
+   seu, não está na Play Store. Escolha *Instalar mesmo assim*.
+
+As versões novas instalam **por cima** da anterior e **mantêm seus dados**,
+porque todas são assinadas com a mesma chave. O banco se atualiza sozinho.
+
+Para gerar o APK a partir do código (precisa de Node, JDK e ~6 GB livres):
+
+```bash
+scripts/build-apk.sh        # sai em dist/meu-plantao-<versao>.apk
+```
+
+O script compila a partir do **último commit**, baixa o Android SDK sozinho na
+primeira vez e repete automaticamente quando o Maven Central responde 429. Só
+gera arm64 (celulares atuais); para emulador x86: `ARQS=arm64-v8a,x86_64`.
+
+### Pelo Expo Go (para desenvolver)
+
+Instale o **Expo Go** ([Play Store](https://play.google.com/store/apps/details?id=host.exp.exponent)) e:
 
 ```bash
 npm install
 npx expo start
 ```
 
-Aponte a câmera para o QR code que aparece no terminal. O app abre no Expo Go.
-O celular e o computador precisam estar na mesma rede Wi-Fi; se não estiverem,
-use `npx expo start --tunnel`.
-
-O APK instalável, que dispensa o Expo Go, é a Etapa 7.
+Aponte a câmera para o QR code. Celular e computador na mesma rede Wi-Fi; se não
+estiverem, `npx expo start --tunnel`.
 
 ---
 
@@ -39,7 +58,7 @@ O APK instalável, que dispensa o Expo Go, é a Etapa 7.
 | --- | --- | --- |
 | ✅ | **1. Fundação** | abas, banco com migrações, tema claro/escuro, agenda mensal navegável |
 | ✅ | **2. Locais** | cadastro com cor, valor padrão, regra de pagamento e descontos; arquivar e restaurar |
-| | 3. Plantões | lançar, editar e ver na agenda; plantão que vira a madrugada |
+| ✅ | **3. Plantões** | lançar, editar e excluir; noturno e 24 h; pontinho por local; conflito de horário; resumo do mês |
 | | 4. Recorrência | escala fixa (12×36, 24×72, semanal) com exceções |
 | | 5. Financeiro | previsão de recebimento, a receber, baixa de pagamento |
 | | 6. Google Calendar | o plantão aparece no calendário do celular |
@@ -47,7 +66,7 @@ O APK instalável, que dispensa o Expo Go, é a Etapa 7.
 
 ---
 
-## Duas decisões que moldam o resto
+## Três decisões que moldam o resto
 
 **Dinheiro em centavos inteiros.** Valor de plantão entra em soma, rateio por
 hora e desconto percentual. Em ponto flutuante, cem parcelas de R$ 0,07 fecham
@@ -61,6 +80,13 @@ paga no dia fixo do mês seguinte, N dias após o plantão, ou por fechamento
 plantão só diz onde e quando foi; a data do dinheiro sai do local.
 
 O esquema dessa regra já está na primeira migração — a Etapa 5 só precisa ler.
+
+**O valor é copiado para dentro de cada plantão.** No lançamento, o plantão
+guarda o valor bruto e o desconto do local *naquele momento*, em vez de ler o
+local depois. Reajustar o valor de um hospital em janeiro não pode mudar
+sozinho o que você já lançou em dezembro — há teste provando. Também por isso o
+plantão pode ter um valor diferente do padrão do local (um plantão extra, uma
+troca com adicional) sem tocar no cadastro.
 
 ---
 
@@ -95,7 +121,7 @@ tests/                   suíte sem emulador — ver abaixo
 ## Testes
 
 ```bash
-npm test            # 206 verificações, sem emulador, sem servidor
+npm test            # 362 verificações, sem emulador, sem servidor
 npm run typecheck
 ```
 
@@ -108,11 +134,14 @@ O que a suíte rápida cobre:
 | `pagamento.mjs` | a regra de pagamento, com bordas de calendário (dia 31 em fevereiro, virada de ano, bissexto, fim de semana, último dia do ciclo) |
 | `esquema.mjs` | as migrações num SQLite real (`node:sqlite`): colunas, padrões, restrições |
 | `locais.mjs` | validação, cor sugerida e persistência — os **mesmos comandos SQL** do app |
+| `plantoes.mjs` | horários (noturno, 24 h, virada de mês e de ano), conflito, marcadores do calendário e soma do mês |
+| `plantoes-db.mjs` | a migração **de quem já tem dados da Etapa 2**, integridade (chave estrangeira, CHECKs), consultas por período |
 
-A regra de pagamento passou por **teste de mutação**: quebrei a lógica de
-propósito de oito maneiras (trocar `<=` por `<`, tirar o ajuste de dia 31,
-somar um dia a mais…) e a suíte detectou todas. Uma nona sobreviveu e se
-mostrou código redundante, que foi removido.
+A regra de pagamento e a lógica de plantões passaram por **teste de mutação**:
+quebrei o código de propósito (trocar `<=` por `<`, tirar o ajuste de dia 31,
+fazer o cancelado contar no valor…) — 8 mutações na regra de pagamento e 18 em
+plantões, todas detectadas. Uma sobreviveu e se mostrou código redundante, que
+foi removido.
 
 ### Testando a interface
 
@@ -122,7 +151,8 @@ diferente. Isso permite testar o fluxo inteiro, sem simulação:
 
 ```bash
 npx expo start --web --port 8081     # num terminal
-npm run test:fluxo                   # noutro: cadastra, edita, arquiva, restaura, recarrega
+npm run test:fluxo                   # noutro: locais — cadastra, edita, arquiva, restaura, recarrega
+npm run test:plantoes                # noutro: plantões — a cor chegando ao pontinho, conflito, cancelar, excluir
 npm run test:telas                   # retratos das quatro abas nos dois temas
 ```
 

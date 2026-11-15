@@ -66,6 +66,45 @@ export const migracoes: Migracao[] = [
       CREATE INDEX idx_locais_ativos ON locais (arquivado_em, nome);
     `,
   },
+  {
+    versao: 2,
+    descricao: "plantoes: o que foi (ou sera) trabalhado, com valor e situacao",
+    sql: `
+      CREATE TABLE plantoes (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+
+        -- Nunca apagamos locais (so arquivamos), entao a referencia nunca fica
+        -- orfa; e o banco impede apontar para um local que nao existe.
+        local_id            INTEGER NOT NULL REFERENCES locais (id),
+
+        -- Instantes em milissegundos (epoch). O dia de calendario do plantao e o
+        -- dia em que ele COMECA: um noturno 19h-07h pertence ao dia da entrada.
+        inicio              INTEGER NOT NULL,
+        fim                 INTEGER NOT NULL,
+
+        -- Valor e desconto sao COPIADOS do local no momento do lancamento, nao
+        -- lidos dele depois. Reajustar o valor de um hospital em janeiro nao
+        -- pode mudar sozinho o que voce ja lancou em dezembro.
+        valor_bruto         INTEGER NOT NULL DEFAULT 0
+                            CHECK (valor_bruto >= 0),
+        desconto_percentual REAL    NOT NULL DEFAULT 0
+                            CHECK (desconto_percentual >= 0 AND desconto_percentual <= 100),
+
+        status              TEXT    NOT NULL DEFAULT 'agendado'
+                            CHECK (status IN ('agendado', 'realizado', 'cancelado', 'trocado')),
+        observacao          TEXT,
+
+        criado_em           INTEGER NOT NULL,
+        atualizado_em       INTEGER NOT NULL,
+
+        CHECK (fim > inicio)
+      );
+
+      -- A agenda busca por intervalo de tempo (o mes na tela).
+      CREATE INDEX idx_plantoes_inicio ON plantoes (inicio);
+      CREATE INDEX idx_plantoes_local  ON plantoes (local_id, inicio);
+    `,
+  },
 ];
 
 export const versaoEsquema = migracoes[migracoes.length - 1]!.versao;

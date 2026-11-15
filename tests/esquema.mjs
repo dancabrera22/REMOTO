@@ -10,17 +10,53 @@ import { DatabaseSync } from "node:sqlite";
 import { migracoes, versaoEsquema } from "../src/db/migrations.ts";
 import { check, report } from "./helpers.mjs";
 
-export function bancoMigrado() {
+/**
+ * Banco em memoria migrado ate `ate` (padrao: a versao corrente). Parar numa
+ * versao antiga e o que permite testar a ATUALIZACAO de quem ja tem dados.
+ */
+export function bancoMigrado(ate = Infinity) {
   const db = new DatabaseSync(":memory:");
   db.exec("PRAGMA foreign_keys = ON;");
   let versao = db.prepare("PRAGMA user_version").get().user_version;
   for (const m of migracoes) {
-    if (m.versao <= versao) continue;
+    if (m.versao <= versao || m.versao > ate) continue;
     db.exec(m.sql);
     db.exec(`PRAGMA user_version = ${m.versao};`);
     versao = m.versao;
   }
   return { db, versao };
+}
+
+/** Aplica as migracoes pendentes de um banco ja existente, como o app faz ao abrir. */
+export function migraAte(db, ate = Infinity) {
+  let versao = db.prepare("PRAGMA user_version").get().user_version;
+  for (const m of migracoes) {
+    if (m.versao <= versao || m.versao > ate) continue;
+    db.exec(m.sql);
+    db.exec(`PRAGMA user_version = ${m.versao};`);
+    versao = m.versao;
+  }
+  return versao;
+}
+
+/**
+ * Faz o `node:sqlite` falar a interface `Executor` do app. `src/db/*.ts` so
+ * conhece essa interface, entao os comandos SQL daqui sao os mesmos do celular.
+ */
+export function adaptador(db) {
+  return {
+    async getAllAsync(sql, params = []) {
+      return db.prepare(sql).all(...params).map((l) => ({ ...l }));
+    },
+    async getFirstAsync(sql, params = []) {
+      const l = db.prepare(sql).get(...params);
+      return l ? { ...l } : null;
+    },
+    async runAsync(sql, params = []) {
+      const r = db.prepare(sql).run(...params);
+      return { lastInsertRowId: Number(r.lastInsertRowid), changes: Number(r.changes) };
+    },
+  };
 }
 
 export function testes() {

@@ -17,24 +17,8 @@ import {
 } from "../src/lib/locais.ts";
 import { formatPercentual, lePercentual, percentualParaCampo } from "../src/lib/money.ts";
 import { coresLocais } from "../src/theme/tokens.ts";
-import { bancoMigrado } from "./esquema.mjs";
+import { adaptador, bancoMigrado } from "./esquema.mjs";
 import { check, igual, report } from "./helpers.mjs";
-
-function adaptador(db) {
-  return {
-    async getAllAsync(sql, params = []) {
-      return db.prepare(sql).all(...params).map((l) => ({ ...l }));
-    },
-    async getFirstAsync(sql, params = []) {
-      const l = db.prepare(sql).get(...params);
-      return l ? { ...l } : null;
-    },
-    async runAsync(sql, params = []) {
-      const r = db.prepare(sql).run(...params);
-      return { lastInsertRowId: Number(r.lastInsertRowid), changes: Number(r.changes) };
-    },
-  };
-}
 
 const novo = (extra = {}) => ({ ...localVazio(), nome: "Hospital Central", ...extra });
 const rejeita = async (fn) => {
