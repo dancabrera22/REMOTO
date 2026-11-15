@@ -105,6 +105,71 @@ export const migracoes: Migracao[] = [
       CREATE INDEX idx_plantoes_local  ON plantoes (local_id, inicio);
     `,
   },
+  {
+    versao: 3,
+    descricao: "series: escalas que se repetem, materializadas em plantoes",
+    sql: `
+      -- Uma serie e a REGRA de repeticao mais o MODELO de cada plantao. Os plantoes
+      -- em si continuam na tabela plantoes: a agenda, as somas e (adiante) os
+      -- recebimentos leem uma tabela so, sem saber o que e escala e o que e avulso.
+      CREATE TABLE series (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        local_id            INTEGER NOT NULL REFERENCES locais (id),
+
+        -- repeticao
+        tipo                TEXT    NOT NULL CHECK (tipo IN ('semanal', 'intervalo', 'mensal')),
+        dias_semana         INTEGER NOT NULL DEFAULT 0 CHECK (dias_semana >= 0 AND dias_semana <= 127),
+        cada                INTEGER NOT NULL DEFAULT 1 CHECK (cada >= 1 AND cada <= 60),
+        dia_do_mes          INTEGER CHECK (dia_do_mes IS NULL OR (dia_do_mes >= 1 AND dia_do_mes <= 31)),
+        inicio_dia          INTEGER NOT NULL,
+        fim_dia             INTEGER,
+
+        -- modelo do plantao (entrada e saida em minutos desde a meia-noite;
+        -- saida <= entrada quer dizer que termina no dia seguinte)
+        inicio_min          INTEGER NOT NULL CHECK (inicio_min >= 0 AND inicio_min < 1440),
+        fim_min             INTEGER NOT NULL CHECK (fim_min >= 0 AND fim_min < 1440),
+        valor_bruto         INTEGER NOT NULL DEFAULT 0 CHECK (valor_bruto >= 0),
+        desconto_percentual REAL    NOT NULL DEFAULT 0
+                            CHECK (desconto_percentual >= 0 AND desconto_percentual <= 100),
+        observacao          TEXT,
+
+        -- Ate que dia as ocorrencias ja viraram plantoes. Uma escala sem data
+        -- final nao pode criar plantoes ate o infinito: a agenda estende sob
+        -- demanda, e este campo diz de onde continuar.
+        gerado_ate          INTEGER NOT NULL DEFAULT 0,
+
+        criado_em           INTEGER NOT NULL,
+        atualizado_em       INTEGER NOT NULL
+      );
+
+      CREATE INDEX idx_series_local ON series (local_id);
+
+      -- Ocorrencias que o usuario EXCLUIU de uma escala. Sem este registro a
+      -- agenda recriaria o plantao na proxima vez que estendesse o calendario.
+      CREATE TABLE series_puladas (
+        serie_id        INTEGER NOT NULL REFERENCES series (id),
+        ocorrencia_dia  INTEGER NOT NULL,
+        PRIMARY KEY (serie_id, ocorrencia_dia)
+      );
+
+      -- serie_id: de que escala o plantao veio (NULL = avulso).
+      -- ocorrencia_dia: o dia que a REGRA deu a ele. Nao muda se o plantao for
+      --   movido para outra data: e a identidade dele dentro da escala.
+      -- excecao: 1 se foi alterado so nele; edicoes em serie nao o sobrescrevem.
+      ALTER TABLE plantoes ADD COLUMN serie_id INTEGER REFERENCES series (id);
+      ALTER TABLE plantoes ADD COLUMN ocorrencia_dia INTEGER;
+      ALTER TABLE plantoes ADD COLUMN excecao INTEGER NOT NULL DEFAULT 0 CHECK (excecao IN (0, 1));
+
+      -- Quando o dinheiro deste plantao entrou (NULL = ainda nao recebeu). So um
+      -- plantao realizado pode estar pago: marcar como pago ja o confirma, e
+      -- voltar para cancelado/agendado limpa a data. O banco garante isso.
+      ALTER TABLE plantoes ADD COLUMN pago_em INTEGER CHECK (pago_em IS NULL OR status = 'realizado');
+
+      -- Uma ocorrencia, um plantao: e o que torna a geracao repetivel sem duplicar.
+      CREATE UNIQUE INDEX idx_plantoes_ocorrencia ON plantoes (serie_id, ocorrencia_dia)
+        WHERE serie_id IS NOT NULL;
+    `,
+  },
 ];
 
 export const versaoEsquema = migracoes[migracoes.length - 1]!.versao;

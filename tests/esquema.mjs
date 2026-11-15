@@ -43,8 +43,8 @@ export function migraAte(db, ate = Infinity) {
  * Faz o `node:sqlite` falar a interface `Executor` do app. `src/db/*.ts` so
  * conhece essa interface, entao os comandos SQL daqui sao os mesmos do celular.
  */
-export function adaptador(db) {
-  return {
+export function adaptador(db, dentro = { ativa: false }) {
+  const ex = {
     async getAllAsync(sql, params = []) {
       return db.prepare(sql).all(...params).map((l) => ({ ...l }));
     },
@@ -56,7 +56,24 @@ export function adaptador(db) {
       const r = db.prepare(sql).run(...params);
       return { lastInsertRowId: Number(r.lastInsertRowid), changes: Number(r.changes) };
     },
+    /** Tudo-ou-nada, como no app. Dentro de outra transacao, so executa. */
+    async transacao(fn) {
+      if (dentro.ativa) return fn(ex);
+      db.exec("BEGIN IMMEDIATE");
+      dentro.ativa = true;
+      try {
+        const r = await fn(ex);
+        db.exec("COMMIT");
+        return r;
+      } catch (erro) {
+        db.exec("ROLLBACK");
+        throw erro;
+      } finally {
+        dentro.ativa = false;
+      }
+    },
   };
+  return ex;
 }
 
 export function testes() {

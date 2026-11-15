@@ -2,8 +2,9 @@
  * Acesso aos plantoes. Mesma regra da camada de locais: depende de `Executor`,
  * nao do `expo-sqlite`, para os testes rodarem os mesmos comandos SQL do app.
  */
-import { LIMITE_OBSERVACAO, type PlantaoComLocal, type PlantaoInput, type StatusPlantao } from "../lib/plantoes.ts";
+import { normalizaObservacao, type PlantaoComLocal, type PlantaoInput, type StatusPlantao } from "../lib/plantoes.ts";
 import type { Executor } from "./locais.ts";
+import { apagaPlantaoRegistrando, recalculaExcecao } from "./series.ts";
 
 interface Linha {
   id: number;
@@ -16,6 +17,10 @@ interface Linha {
   observacao: string | null;
   criado_em: number;
   atualizado_em: number;
+  serie_id: number | null;
+  ocorrencia_dia: number | null;
+  excecao: number;
+  pago_em: number | null;
   local_nome: string;
   local_apelido: string | null;
   local_cor: string;
@@ -41,6 +46,10 @@ function paraPlantao(l: Linha): PlantaoComLocal {
     observacao: l.observacao,
     criadoEm: l.criado_em,
     atualizadoEm: l.atualizado_em,
+    serieId: l.serie_id,
+    ocorrenciaDia: l.ocorrencia_dia,
+    excecao: l.excecao === 1,
+    pagoEm: l.pago_em,
     local: {
       nome: l.local_nome,
       apelido: l.local_apelido,
@@ -50,10 +59,7 @@ function paraPlantao(l: Linha): PlantaoComLocal {
   };
 }
 
-function observacao(valor: string | null): string | null {
-  const t = (valor ?? "").trim();
-  return t ? t.slice(0, LIMITE_OBSERVACAO) : null;
-}
+const observacao = normalizaObservacao;
 
 /**
  * Plantoes que COMECAM entre `deMs` e `ateMs` (inclusive), em ordem de horario.
@@ -84,21 +90,32 @@ export async function criaPlantao(db: Executor, e: PlantaoInput, agora = Date.no
   return r.lastInsertRowId;
 }
 
-/** `false` quando o plantao nao existe (apagado em outra tela, por exemplo). */
+/**
+ * `false` quando o plantao nao existe (apagado em outra tela, por exemplo).
+ *
+ * Se o plantao vem de uma escala, a situacao dele em relacao a escala e
+ * recalculada: diferente do modelo vira "excecao" (edicoes em serie passam a
+ * respeita-lo); igual ao modelo volta a fazer parte da escala.
+ */
 export async function atualizaPlantao(
   db: Executor,
   id: number,
   e: PlantaoInput,
   agora = Date.now(),
 ): Promise<boolean> {
-  const r = await db.runAsync(
-    `UPDATE plantoes SET
-       local_id = ?, inicio = ?, fim = ?, valor_bruto = ?, desconto_percentual = ?,
-       status = ?, observacao = ?, atualizado_em = ?
-     WHERE id = ?`,
-    [e.localId, e.inicio, e.fim, e.valorBruto, e.descontoPercentual, e.status, observacao(e.observacao), agora, id],
-  );
-  return r.changes > 0;
+  return db.transacao(async (ex) => {
+    const r = await ex.runAsync(
+      `UPDATE plantoes SET
+         local_id = ?, inicio = ?, fim = ?, valor_bruto = ?, desconto_percentual = ?,
+         status = ?, observacao = ?, atualizado_em = ?,
+         pago_em = CASE WHEN ? = 'realizado' THEN pago_em ELSE NULL END
+       WHERE id = ?`,
+      [e.localId, e.inicio, e.fim, e.valorBruto, e.descontoPercentual, e.status, observacao(e.observacao), agora, e.status, id],
+    );
+    if (r.changes === 0) return false;
+    await recalculaExcecao(ex, id);
+    return true;
+  });
 }
 
 /** Atalho da lista do dia: muda so a situacao, sem abrir o formulario. */
@@ -108,13 +125,44 @@ export async function mudaStatusPlantao(
   status: StatusPlantao,
   agora = Date.now(),
 ): Promise<boolean> {
-  const r = await db.runAsync("UPDATE plantoes SET status = ?, atualizado_em = ? WHERE id = ?", [status, agora, id]);
+  // Pago implica realizado: sair de "realizado" apaga a data do pagamento.
+  const r = await db.runAsync(
+    "UPDATE plantoes SET status = ?, atualizado_em = ?, pago_em = CASE WHEN ? = 'realizado' THEN pago_em ELSE NULL END WHERE id = ?",
+    [status, agora, status, id],
+  );
   return r.changes > 0;
 }
 
-export async function excluiPlantao(db: Executor, id: number): Promise<boolean> {
-  const r = await db.runAsync("DELETE FROM plantoes WHERE id = ?", [id]);
+/**
+ * Marca o plantao como pago (`pagoEm` = quando o dinheiro entrou) ou desfaz
+ * (`null`). Marcar como pago confirma o plantao: se estava so agendado, vira
+ * realizado, pois ninguem recebe por um plantao que nao aconteceu. Cancelado e
+ * trocado nao tem o que receber: devolve `false`.
+ */
+export async function marcaPagamento(
+  db: Executor,
+  id: number,
+  pagoEm: number | null,
+  agora = Date.now(),
+): Promise<boolean> {
+  if (pagoEm === null) {
+    const r = await db.runAsync("UPDATE plantoes SET pago_em = NULL, atualizado_em = ? WHERE id = ?", [agora, id]);
+    return r.changes > 0;
+  }
+  const r = await db.runAsync(
+    "UPDATE plantoes SET pago_em = ?, status = 'realizado', atualizado_em = ? WHERE id = ? AND status IN ('agendado', 'realizado')",
+    [pagoEm, agora, id],
+  );
   return r.changes > 0;
+}
+
+/**
+ * Exclui UM plantao. Se ele veio de uma escala, a ocorrencia fica registrada
+ * como pulada: sem isso a agenda a recriaria na proxima vez que estendesse o
+ * calendario. Para apagar varios da escala, ver `excluiDaSerie`.
+ */
+export async function excluiPlantao(db: Executor, id: number): Promise<boolean> {
+  return db.transacao((ex) => apagaPlantaoRegistrando(ex, id));
 }
 
 /** Quantos plantoes existem num local; base para decidir sobre excluir/arquivar. */

@@ -47,6 +47,17 @@ export interface Plantao extends PlantaoInput {
   id: number;
   criadoEm: number;
   atualizadoEm: number;
+  /** De que escala veio (`null` = lancado avulso). */
+  serieId: number | null;
+  /**
+   * O dia que a REGRA da escala deu a este plantao. Nao muda se ele for movido
+   * para outra data: e a identidade dele dentro da escala.
+   */
+  ocorrenciaDia: number | null;
+  /** `true` quando foi alterado so nele e difere do modelo da escala. */
+  excecao: boolean;
+  /** Quando o pagamento caiu (`null` = ainda nao recebeu). Implica status "realizado". */
+  pagoEm: number | null;
 }
 
 /** O plantao com o necessario do local para desenhar a agenda sem outra consulta. */
@@ -55,6 +66,12 @@ export interface PlantaoComLocal extends Plantao {
 }
 
 export const LIMITE_OBSERVACAO = 300;
+
+/** Observacao opcional: vazia vira `null` e o limite e aplicado antes de gravar. */
+export function normalizaObservacao(valor: string | null): string | null {
+  const t = (valor ?? "").trim();
+  return t ? t.slice(0, LIMITE_OBSERVACAO) : null;
+}
 /** Plantao mais longo aceito: o formulario so monta ate 24 h, a validacao deixa folga. */
 export const LIMITE_MINUTOS = 48 * 60;
 

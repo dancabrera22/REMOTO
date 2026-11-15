@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import * as SQLite from "expo-sqlite";
 import type { Executor } from "./locais";
 import { migracoes } from "./migrations";
@@ -64,15 +65,47 @@ const executores = new WeakMap<Banco, Executor>();
 export function executorDe(db: Banco): Executor {
   let ex = executores.get(db);
   if (!ex) {
-    ex = {
-      getAllAsync: (sql, params = []) => db.getAllAsync(sql, params),
-      getFirstAsync: (sql, params = []) => db.getFirstAsync(sql, params),
-      runAsync: async (sql, params = []) => {
-        const r = await db.runAsync(sql, params);
-        return { lastInsertRowId: r.lastInsertRowId, changes: r.changes };
-      },
-    };
+    ex = criaExecutor(db, false);
     executores.set(db, ex);
   }
+  return ex;
+}
+
+function criaExecutor(db: Banco, dentroDeTransacao: boolean): Executor {
+  const ex: Executor = {
+    getAllAsync: (sql, params = []) => db.getAllAsync(sql, params),
+    getFirstAsync: (sql, params = []) => db.getFirstAsync(sql, params),
+    runAsync: async (sql, params = []) => {
+      const r = await db.runAsync(sql, params);
+      return { lastInsertRowId: r.lastInsertRowId, changes: r.changes };
+    },
+
+    async transacao<T>(fn: (e: Executor) => Promise<T>): Promise<T> {
+      if (dentroDeTransacao) return fn(ex);
+
+      let resultado: T | undefined;
+      let concluiu = false;
+
+      if (Platform.OS === "web") {
+        // Na web nao existe transacao exclusiva (o Expo documenta isso). A comum
+        // serve: la o app so roda em desenvolvimento e os testes, onde uma
+        // acao de cada vez acontece.
+        await db.withTransactionAsync(async () => {
+          resultado = await fn(ex);
+          concluiu = true;
+        });
+      } else {
+        // Exclusiva: abre uma conexao propria, entao nenhuma consulta da tela
+        // se mistura aos passos da transacao.
+        await db.withExclusiveTransactionAsync(async (txn) => {
+          resultado = await fn(criaExecutor(txn, true));
+          concluiu = true;
+        });
+      }
+
+      if (!concluiu) throw new Error("A transação terminou sem concluir.");
+      return resultado as T;
+    },
+  };
   return ex;
 }

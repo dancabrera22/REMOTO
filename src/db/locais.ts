@@ -23,6 +23,13 @@ export interface Executor {
   getAllAsync<T>(sql: string, params?: Param[]): Promise<T[]>;
   getFirstAsync<T>(sql: string, params?: Param[]): Promise<T | null>;
   runAsync(sql: string, params?: Param[]): Promise<{ lastInsertRowId: number; changes: number }>;
+  /**
+   * Executa `fn` tudo-ou-nada: se qualquer passo falhar, nenhum dos anteriores
+   * fica gravado. Editar uma escala apaga, move e recria muitas linhas, e um
+   * app fechado no meio nao pode deixar a agenda pela metade. Chamada dentro de
+   * outra transacao apenas executa `fn` na que ja existe.
+   */
+  transacao<T>(fn: (ex: Executor) => Promise<T>): Promise<T>;
 }
 
 interface Linha {

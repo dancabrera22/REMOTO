@@ -16,6 +16,8 @@ import { testes as logica } from "./logica.mjs";
 import { testes as pagamento } from "./pagamento.mjs";
 import { testes as plantoes } from "./plantoes.mjs";
 import { testes as plantoesDb } from "./plantoes-db.mjs";
+import { testes as recorrencia } from "./recorrencia.mjs";
+import { testes as seriesDb } from "./series-db.mjs";
 
 console.log("\n── lógica (dinheiro e datas)");
 logica();
@@ -37,5 +39,11 @@ plantoes();
 
 console.log("\n── plantões no banco (migração, integridade, consultas)");
 await plantoesDb();
+
+console.log("\n── recorrência (datas de cada escala)");
+recorrencia();
+
+console.log("\n── escalas no banco (criar, editar, excluir, falhas no meio)");
+await seriesDb();
 
 process.exit(report() ? 0 : 1);
