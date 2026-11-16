@@ -92,6 +92,11 @@ export function useInvalidar(): () => void {
   return useContext(RevisaoContext).invalidar;
 }
 
+/** Sobe a cada escrita: quem precisa reagir a qualquer mudanca nos dados (ex.: sincronizar o calendario). */
+export function useRevisao(): number {
+  return useContext(RevisaoContext).revisao;
+}
+
 export type Consulta<T> =
   | { status: "carregando"; dados: null; erro: null }
   | { status: "pronto"; dados: T; erro: null }

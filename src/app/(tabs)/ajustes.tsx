@@ -1,5 +1,6 @@
 import Constants from "expo-constants";
 import { Platform, View } from "react-native";
+import { CalendarioAjustes } from "@/components/calendario-ajustes";
 import { Screen } from "@/components/screen";
 import { Card, Icone, Pill, Row, Secao, Txt } from "@/components/ui";
 import { versaoEsquema } from "@/db/migrations";
@@ -12,7 +13,7 @@ const ETAPAS = [
   { n: 3, nome: "Plantões", detalhe: "lançar, editar, ver na agenda, pontinho por local", feita: true },
   { n: 4, nome: "Recorrência", detalhe: "escala fixa que se repete, marcar como pago, deslizar", feita: true },
   { n: 5, nome: "Financeiro", detalhe: "previsão por mês, atrasados, baixa em lote, feriados", feita: true },
-  { n: 6, nome: "Google Calendar", detalhe: "plantão aparece no calendário", feita: false },
+  { n: 6, nome: "Google Calendar", detalhe: "plantão vira evento no calendário do celular, com lembrete", feita: true },
   { n: 7, nome: "APK e backup", detalhe: "instalável, com exportação", feita: false },
 ];
 
@@ -37,6 +38,8 @@ export default function Ajustes() {
 
   return (
     <Screen titulo="Ajustes" subtitulo="Estado do app e o que vem por aí">
+      <CalendarioAjustes />
+
       <View>
         <Secao>Diagnóstico</Secao>
         <Card padding="none" style={{ paddingHorizontal: t.spacing.lg }}>
@@ -106,9 +109,10 @@ export default function Ajustes() {
       <Card>
         <Txt variant="bodyStrong">Seus dados ficam com você</Txt>
         <Txt variant="label" tom="muted" style={{ marginTop: t.spacing.sm }}>
-          Tudo é gravado só neste aparelho, num banco SQLite. Não há servidor, não há conta para
-          criar e nada sai do celular — nem valores, nem locais, nem a sua escala. O backup em
-          arquivo e a exportação chegam na Etapa 7.
+          Tudo é gravado só neste aparelho, num banco SQLite. Não há servidor nem conta para criar, e o
+          app não envia nada para lugar nenhum. A única exceção é o que você mesmo manda para o
+          calendário: se o calendário escolhido for de uma conta Google, é o Google quem o
+          sincroniza. O backup em arquivo e a exportação chegam na Etapa 7.
         </Txt>
       </Card>
     </Screen>

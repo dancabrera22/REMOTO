@@ -7,17 +7,15 @@ Tudo fica no próprio aparelho, num banco SQLite. Sem servidor, sem conta para
 criar, sem mensalidade — nem valores, nem locais, nem a sua escala saem do
 celular.
 
-> **Etapa 5 de 7 — Financeiro.** A aba **Financeiro** responde «quanto entra, e
-> quando». Cada plantão vira *recebido*, *atrasado*, *a receber* ou *previsto*,
-> pela regra de pagamento do local — agora também **pulando feriados nacionais,
-> Carnaval e Corpus Christi**. Veja o mês (setas ou deslizando), os pagamentos
-> agrupados por local e dia, o total **em atraso** (com um número no ícone da aba)
-> e **como vem por aí** nos próximos meses. Quando o hospital deposita, abra o
-> pagamento e **dê baixa em vários plantões de uma vez**, escolhendo só os que
-> vieram e o dia em que o dinheiro caiu; dá para desfazer. Antes (Etapa 4):
-> escalas que se repetem, marcar como pago, deslizar o calendário e o cartão,
-> e os atalhos de cadastrar local e incluir plantão. O estado de cada etapa está
-> dentro do app, em **Ajustes**.
+> **Etapa 6 de 7 — Calendário.** Em **Ajustes**, conecte o calendário do celular: cada
+> plantão vira um evento (título, endereço do local, horário — o noturno termina no
+> dia seguinte), com o **lembrete** que você escolher (30 min, 1 h, 2 h ou 1 dia
+> antes). Se o calendário for o da sua **conta Google**, os plantões aparecem também
+> no Google Calendar. Mudou, cancelou ou excluiu um plantão? O evento acompanha
+> sozinho, poucos segundos depois. O valor **não** vai para o evento, a menos que
+> você peça. Antes: a aba **Financeiro** (previsão, atrasados, baixa em lote,
+> feriados) e as escalas que se repetem. O estado de cada etapa está dentro do app,
+> em **Ajustes**.
 
 ---
 
@@ -67,7 +65,7 @@ estiverem, `npx expo start --tunnel`.
 | ✅ | **3. Plantões** | lançar, editar e excluir; noturno e 24 h; pontinho por local; conflito de horário; resumo do mês |
 | ✅ | **4. Recorrência** | escala fixa (semanal, ciclo 12×36 / 24×72, mensal) com exceções; só este / próximos / todos; marcar como pago; deslizar para navegar e excluir |
 | ✅ | **5. Financeiro** | previsão por mês e por local, atrasados, baixa em lote, feriados nacionais |
-| | 6. Google Calendar | o plantão aparece no calendário do celular |
+| ✅ | **6. Google Calendar** | o plantão vira evento no calendário do celular (e no Google, pela conta do aparelho), com lembrete; acompanha as mudanças |
 | | 7. APK e backup | instalável, com exportação e restauração |
 
 ---
@@ -127,7 +125,7 @@ tests/                   suíte sem emulador — ver abaixo
 ## Testes
 
 ```bash
-npm test            # 807 verificações, sem emulador, sem servidor
+npm test            # 963 verificações, sem emulador, sem servidor
 npm run typecheck
 ```
 
@@ -146,13 +144,16 @@ O que a suíte rápida cobre:
 | `feriados.mjs` | Páscoa de 1981 a 2076 (inclusive os anos em que o algoritmo precisa de correção), feriados fixos e móveis, Consciência Negra só a partir de 2024, e o efeito na data de recebimento (sábado de Carnaval, Natal de sexta…) |
 | `financeiro.mjs` | a situação de cada plantão (recebido, atrasado, a receber, previsto), grupos por local e dia, somas por mês — com as bordas: prazo que vence hoje, virada de mês, regra incompleta |
 | `financeiro-db.mjs` | a consulta com a regra do local, a baixa em lote (não paga cancelado, não sobrescreve quem já recebeu, mil de uma vez) e **falha injetada em cada lote** |
+| `calendario.mjs` | o que um plantão vira como evento (título, local, notas, lembrete), quando o valor aparece (só se pedido), a assinatura que decide se há o que atualizar, a janela de datas e a leitura da configuração (inclusive texto estragado) |
+| `calendario-db.mjs` | a sincronização contra um **calendário falso**: criar, atualizar só o que mudou, remover, refazer o que a pessoa apagou no calendário, trocar de calendário, desconectar com e sem remover, nunca duas rodadas ao mesmo tempo — e **falha injetada em cada escrita** (a rodada seguinte sempre termina o serviço, sem duplicar) |
 | `series-db.mjs` | criar, estender, editar e excluir escalas no SQLite; o que **nunca** pode se perder (realizado, pago, ajustado à mão); e **falha injetada em cada passo** de cada operação para provar que nada fica pela metade |
 
 A regra de pagamento e a lógica de plantões passaram por **teste de mutação**:
 quebrei o código de propósito (trocar `<=` por `<`, tirar o ajuste de dia 31,
 fazer o cancelado contar no valor…) — 8 mutações na regra de pagamento, 18 em
 plantões, 19 em recorrência, 38 nas escalas do banco, 7 em pagamento/exclusão,
-18 em feriados, 25 no motor financeiro e 16 na baixa em lote, todas detectadas. As que sobreviveram mostraram lacunas: ou um caso sem teste
+18 em feriados, 25 no motor financeiro, 16 na baixa em lote, 33 na sincronização do
+calendário e 20 no conteúdo do evento, todas detectadas. As que sobreviveram mostraram lacunas: ou um caso sem teste
 (que ganhou teste) ou código redundante (que foi removido).
 
 ### Testando a interface
@@ -168,6 +169,17 @@ npm run test:plantoes                # noutro: plantões — a cor chegando ao p
 npm run test:escalas                 # noutro: escalas, pagamento e gestos (com toques de dedo de verdade)
 npm run test:atalhos                 # noutro: botão Local, o «+» do formulário, segurar o dia
 npm run test:financeiro              # noutro: atrasados, baixa parcial e em lote, desfazer, navegar entre meses
+```
+
+`test:calendario` precisa do servidor iniciado com um calendário falso (o navegador não
+tem calendário de verdade):
+
+```bash
+EXPO_PUBLIC_CALENDARIO_FALSO=1 npx expo start --web --port 8081
+npm run test:calendario              # conectar, trocar, parar, permissão negada, calendário que sumiu
+```
+
+```bash
 npm run test:telas                   # retratos das quatro abas nos dois temas
 ```
 
@@ -182,6 +194,8 @@ SQLite é nativo.
 
 Rodam em Linux, sobre `react-native-web`. O comportamento no Android de
 verdade — teclado sobrepondo campos, área segura, gesto de voltar, o
-`expo-sqlite` nativo — só se confirma abrindo no aparelho. O que merece
+`expo-sqlite` nativo, **e o calendário do aparelho** (o pedido de permissão, os
+eventos aparecendo no Google Calendar, o lembrete tocando) — só se confirma abrindo
+no aparelho. O que merece
 atenção ao abrir o formulário no celular: se o teclado numérico cobre o campo
 que você está digitando.

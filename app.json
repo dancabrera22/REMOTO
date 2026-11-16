@@ -25,6 +25,13 @@
     "plugins": [
       "expo-router",
       [
+        "expo-calendar",
+        {
+          "calendarPermission": "O Meu Plantão coloca seus plantões no calendário do celular, com lembrete.",
+          "remindersPermission": false
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#0E4F4A",
