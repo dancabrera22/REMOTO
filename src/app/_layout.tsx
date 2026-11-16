@@ -8,18 +8,19 @@ import { executorDe } from "@/db/client";
 import { sincronizaSemSobrepor } from "@/db/calendario";
 import { BancoProvider, useEstadoBanco, useRevisao } from "@/db/provider";
 import { obtemProvedorDeCalendario } from "@/lib/calendario-provedor";
-import { AppThemeProvider, useTheme } from "@/theme";
+import { useTheme } from "@/theme";
+import { TemaDoApp, useEscolhaDeTema } from "@/theme/escolha";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <AppThemeProvider>
-        <BancoProvider>
+      <BancoProvider>
+        <TemaDoApp>
           <Conteudo />
-        </BancoProvider>
-      </AppThemeProvider>
+        </TemaDoApp>
+      </BancoProvider>
     </SafeAreaProvider>
   );
 }
@@ -54,12 +55,13 @@ function SincronizadorDoCalendario() {
 function Conteudo() {
   const t = useTheme();
   const banco = useEstadoBanco();
+  const { carregada } = useEscolhaDeTema();
 
-  // A splash sai quando o banco terminou de abrir (ou falhou): assim ninguem ve
-  // a agenda piscar vazia antes dos dados aparecerem.
+  // A splash sai quando o banco terminou de abrir (ou falhou) e a escolha de tema foi
+  // lida: assim ninguem ve a agenda piscar vazia, nem o tema errado por um instante.
   useEffect(() => {
-    if (banco.status !== "carregando") SplashScreen.hideAsync().catch(() => {});
-  }, [banco.status]);
+    if (banco.status !== "carregando" && carregada) SplashScreen.hideAsync().catch(() => {});
+  }, [banco.status, carregada]);
 
   return (
     <>

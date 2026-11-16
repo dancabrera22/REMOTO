@@ -12,6 +12,7 @@ import { report } from "./helpers.mjs";
 import { testes as backup } from "./backup.mjs";
 import { testes as backupDb } from "./backup-db.mjs";
 import { testes as exportacao } from "./exportacao.mjs";
+import { testes as tema } from "./tema.mjs";
 import { testes as calendario } from "./calendario.mjs";
 import { testes as calendarioDb } from "./calendario-db.mjs";
 import { testes as cores } from "./cores.mjs";
@@ -73,5 +74,8 @@ await backupDb();
 
 console.log("\n── exportação para planilha (CSV)");
 await exportacao();
+
+console.log("\n── tema (claro, escuro ou do celular)");
+await tema();
 
 process.exit(report() ? 0 : 1);

@@ -18,7 +18,8 @@
     "test:atalhos": "node --experimental-strip-types tests/fluxo-atalhos.mjs",
     "test:financeiro": "node --experimental-strip-types tests/fluxo-financeiro.mjs",
     "test:calendario": "node --experimental-strip-types tests/fluxo-calendario.mjs",
-    "test:deslizar": "node --experimental-strip-types tests/fluxo-deslizar.mjs"
+    "test:deslizar": "node --experimental-strip-types tests/fluxo-deslizar.mjs",
+    "test:dados": "node --experimental-strip-types tests/fluxo-dados.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",

@@ -1,0 +1,4 @@
+﻿Data;Dia;Início;Fim;Horas;Local;Situação;Conta no valor;Valor bruto;Desconto (%);Valor líquido;Recebimento previsto;Pago em;Observação;Escala
+13/11/2026;sex;13/11/2026 07:00;13/11/2026 19:00;12;Hospital A;Realizado;Sim;1000,00;0;1000,00;10/12/2026;;;Não
+18/11/2026;qua;18/11/2026 07:00;18/11/2026 19:00;12;UPA Norte;Agendado;Sim;500,00;0;500,00;10/12/2026;;;Não
+21/11/2026;sáb;21/11/2026 19:00;22/11/2026 07:00;12;Hospital A;Agendado;Sim;1000,00;0;1000,00;10/12/2026;;;Não
