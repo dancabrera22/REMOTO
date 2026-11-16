@@ -299,6 +299,99 @@ async function main() {
   const toque = analisa(await page.evaluate(() => window.__quadros.slice()));
   check("tocar num dia do mesmo mes nao esmaece a lista", toque.menorOpacidade >= 0.99, `minimo ${toque.menorOpacidade.toFixed(2)}`);
 
+  /* ====================================== FINANCEIRO ====================================== */
+  // O mes da aba Financeiro nao desliza com o dedo: a troca e leve — o que depende do mes entra
+  // esmaecido e deslocado, a altura da lista muda deslizando e a legenda nao empurra o titulo.
+
+  await page.goto(`${BASE}/financeiro`, { waitUntil: "networkidle", timeout: 120_000 });
+  await tem("Como vem por aí", 60_000);
+  await espera(600);
+
+  await page.evaluate(() => {
+    const folhas = () => [...document.querySelectorAll("div, span")].filter((e) => e.children.length === 0);
+    const opacidadeEfetiva = (el) => {
+      let o = 1;
+      for (let e = el; e; e = e.parentElement) o *= Number(getComputedStyle(e).opacity);
+      return o;
+    };
+    window.__fin = [];
+    window.__gravaFin = false;
+    const laco = () => {
+      if (window.__gravaFin) {
+        const fl = folhas();
+        const titulo = fl.find((e) => /^[a-zç]+ de 20\d\d$/i.test(e.textContent.trim()));
+        const legenda = fl.find((e) => /^(Neste mês|Movimento do mês|Previsto para o mês)$/.test(e.textContent.trim()));
+        const embaixo = fl.find((e) => e.textContent.trim().toUpperCase() === "COMO VEM POR AÍ");
+        window.__fin.push({
+          t: performance.now(),
+          titulo: titulo?.textContent.trim(),
+          tituloAltura: titulo?.parentElement ? Math.round(titulo.parentElement.getBoundingClientRect().height) : null,
+          legenda: legenda?.textContent.trim(),
+          opacidade: legenda ? opacidadeEfetiva(legenda) : null,
+          embaixoY: embaixo ? embaixo.getBoundingClientRect().y : null,
+        });
+      }
+      requestAnimationFrame(laco);
+    };
+    requestAnimationFrame(laco);
+  });
+
+  /** Executa `acao`, grava os quadros por `ms` e devolve a analise da troca. */
+  async function trocaFin(acao, ms = 800) {
+    await page.evaluate(() => { window.__fin = []; window.__gravaFin = true; });
+    await acao();
+    await espera(ms);
+    const q = await page.evaluate(() => { window.__gravaFin = false; return window.__fin.slice(); });
+    const ys = q.map((f) => f.embaixoY).filter((v) => v !== null);
+    let maiorPasso = 0;
+    for (let i = 1; i < ys.length; i++) maiorPasso = Math.max(maiorPasso, Math.abs(ys[i] - ys[i - 1]));
+    const iTroca = q.findIndex((f, i) => i > 0 && f.titulo !== q[0].titulo);
+    const alturas = q.map((f) => f.tituloAltura).filter((v) => v !== null);
+    return {
+      total: ys.length ? Math.abs(ys[ys.length - 1] - ys[0]) : 0,
+      maiorPasso,
+      opNaTroca: iTroca >= 0 ? q[iTroca].opacidade : null,
+      opFinal: q[q.length - 1].opacidade,
+      titulo: q[q.length - 1].titulo,
+      variacaoDoTitulo: alturas.length ? Math.max(...alturas) - Math.min(...alturas) : 0,
+    };
+  }
+
+  const anterior = page.getByRole("button", { name: "Mês anterior" });
+  const proximo = page.getByRole("button", { name: "Próximo mês" });
+  const transicoes = [];
+  await anterior.click();
+  await anterior.click();
+  await espera(700);
+  for (let i = 0; i < 9; i++) {
+    const r = await trocaFin(() => proximo.click());
+    transicoes.push(r);
+  }
+  console.log("  transicoes (mudanca de altura embaixo / maior passo / opacidade na troca): " + transicoes.map((r) => `${Math.round(r.total)}/${r.maiorPasso.toFixed(0)}/${r.opNaTroca?.toFixed(2)}`).join("  "));
+  check("em toda troca de mes, o conteudo novo ja entra esmaecido (nao em cheio)", transicoes.every((r) => r.opNaTroca !== null && r.opNaTroca <= 0.7), transicoes.map((r) => r.opNaTroca?.toFixed(2)).join(" "));
+  check("e assenta em opacidade total", transicoes.every((r) => r.opFinal >= 0.99));
+  check("a legenda \"voltar para este mes\" nao muda a altura do titulo", transicoes.every((r) => r.variacaoDoTitulo <= 1), `${Math.max(...transicoes.map((r) => r.variacaoDoTitulo))} px`);
+  const grandes = transicoes.filter((r) => r.total >= 60);
+  check("ha pelo menos uma troca em que a lista muda bastante de altura (a verificacao abaixo vale de verdade)", grandes.length >= 1, `${grandes.length} de ${transicoes.length}`);
+  check(
+    "quando a lista muda de altura, DESLIZA: nenhum quadro carrega mais de 40% da mudanca",
+    grandes.every((r) => r.maiorPasso <= r.total * 0.4),
+    grandes.map((r) => `${r.maiorPasso.toFixed(0)}/${Math.round(r.total)}`).join(" "),
+  );
+
+  // Deslizar o dedo sobre o cartao do mes (o gesto que ja existia) tambem anima.
+  const cartao = await page.getByRole("button", { name: "Mês anterior" }).boundingBox();
+  const antesDoDedo = (await texto()).match(/[a-zç]+ de 20\d\d/i)?.[0];
+  const r5 = await trocaFin(async () => {
+    const y = cartao.y + cartao.height / 2;
+    const de = 300;
+    await toca(de, y);
+    for (let x = 0; x >= -160; x -= 10) { await move(de + x, y); await espera(14); }
+    await solta();
+  });
+  check("deslizar o dedo sobre o cartao do mes troca o mes", r5.titulo !== antesDoDedo, `${antesDoDedo} -> ${r5.titulo}`);
+  check("e tambem entra esmaecido", r5.opNaTroca !== null && r5.opNaTroca <= 0.7, `${r5.opNaTroca?.toFixed(2)}`);
+
   await page.screenshot({ path: path.join(SAIDA, "suave-final.png") });
   igual("nenhum erro no console", erros.length, 0);
   if (erros.length) console.log(erros.slice(0, 5).join("\n"));

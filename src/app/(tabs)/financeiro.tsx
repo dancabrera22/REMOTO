@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
-import { Pressable, View } from "react-native";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Animated, Easing, Pressable, View } from "react-native";
+import { AlturaSuave } from "@/components/altura-suave";
 import { FolhaRecebimento, TOM_ESTADO } from "@/components/baixa-recebimento";
 import { SO_ROLA_NA_VERTICAL, useDeslizeHorizontal } from "@/components/gestos";
 import { Screen } from "@/components/screen";
@@ -58,8 +59,31 @@ export default function Financeiro() {
   // Sem atrasos nao ha o que ver na aba de atrasados.
   const visaoEfetiva: Visao = atrasos.plantoes === 0 ? "mes" : visao;
 
+  // Trocar de mes muda tudo de uma vez (valores, barra, lista). Para isso nao parecer um "pisca",
+  // o que depende do mes entra esmaecido e um pouco deslocado do lado de onde a pessoa veio, e
+  // assenta em 240 ms; e a altura da lista e do resumo muda deslizando (AlturaSuave).
+  const entra = useRef(new Animated.Value(0)).current; // 1 = recem trocado, 0 = em repouso
+  const sentido = useRef<1 | -1>(1);
+  const primeiraVez = useRef(true);
+  useLayoutEffect(() => {
+    if (primeiraVez.current) {
+      primeiraVez.current = false;
+      return;
+    }
+    // Animacao em JS (nao nativa): o valor inicial vale antes de a tela ser desenhada, entao o
+    // conteudo novo nunca aparece em cheio por um quadro antes de esmaecer.
+    entra.setValue(1);
+    Animated.timing(entra, { toValue: 0, duration: 240, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+  }, [mes, entra]);
+  const estiloEntrada = {
+    opacity: entra.interpolate({ inputRange: [0, 1], outputRange: [1, 0.3] }),
+    transform: [{ translateX: entra.interpolate({ inputRange: [0, 1], outputRange: [0, sentido.current * 28] }) }],
+  };
+
   const trocaMes = (ms: number) => {
-    setMes(inicioDoMes(ms));
+    const novo = inicioDoMes(ms);
+    sentido.current = novo >= mes ? 1 : -1;
+    setMes(novo);
     setVisao("mes");
   };
   const deslize = useDeslizeHorizontal((dir) => trocaMes(somaMeses(mes, dir === "esquerda" ? 1 : -1)));
@@ -97,11 +121,10 @@ export default function Financeiro() {
               style={{ alignItems: "center", gap: 2 }}
             >
               <Txt variant="title">{formatMesAno(mes)}</Txt>
-              {mes !== mesAtual && (
-                <Txt variant="caption" tom="primary">
-                  voltar para este mês
-                </Txt>
-              )}
+              {/* A linha existe sempre (um espaco, no mes atual): se aparecesse e sumisse, tudo embaixo daria um tranco. */}
+              <Txt variant="caption" tom="primary">
+                {mes !== mesAtual ? "voltar para este mês" : "\u00A0"}
+              </Txt>
             </Pressable>
             <Pressable
               onPress={() => trocaMes(somaMeses(mes, 1))}
@@ -116,57 +139,61 @@ export default function Financeiro() {
         </Card>
 
         {/* --------------------------------- resumo --------------------------------- */}
-        <Card>
-          <Txt variant="caption" tom="muted">
-            {mes < mesAtual ? "Movimento do mês" : mes === mesAtual ? "Neste mês" : "Previsto para o mês"}
-          </Txt>
-          <Txt variant="money" style={{ marginTop: 2 }}>
-            {formatBRL(resumo.total)}
-          </Txt>
-          {resumo.total > 0 && (
-            <View
-              accessibilityLabel={`Recebido ${formatBRL(resumo.recebido)} de ${formatBRL(resumo.total)}`}
-              style={{
-                flexDirection: "row",
-                height: 8,
-                borderRadius: 4,
-                overflow: "hidden",
-                backgroundColor: t.colors.surfaceAlt,
-                marginVertical: t.spacing.md,
-              }}
-            >
-              <View style={{ flex: resumo.recebido, backgroundColor: t.colors.success }} />
-              <View style={{ flex: resumo.total - resumo.recebido, backgroundColor: "transparent" }} />
-            </View>
-          )}
-          <View style={{ flexDirection: "row", gap: t.spacing.lg, marginTop: resumo.total > 0 ? 0 : t.spacing.md }}>
-            <Metrica rotulo="Recebido" valor={resumo.recebido} tom="success" />
-            <Metrica rotulo="A receber" valor={resumo.aReceber} tom="warning" />
-            <Metrica rotulo="Previsto" valor={resumo.previsto} tom="primary" />
-          </View>
-          {resumo.atrasado > 0 && (
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: t.spacing.sm,
-                marginTop: t.spacing.md,
-                paddingTop: t.spacing.md,
-                borderTopWidth: 1,
-                borderTopColor: t.colors.border,
-              }}
-            >
-              <Icone name="alert-circle-outline" size={18} color={t.colors.danger} />
-              <Txt variant="label" tom="danger" style={{ flex: 1 }}>
-                {`Atrasado neste mês: ${formatBRL(resumo.atrasado)}`}
+        <Animated.View style={estiloEntrada}>
+          <AlturaSuave>
+            <Card>
+              <Txt variant="caption" tom="muted">
+                {mes < mesAtual ? "Movimento do mês" : mes === mesAtual ? "Neste mês" : "Previsto para o mês"}
               </Txt>
-            </View>
-          )}
-          <Txt variant="caption" tom="faint" style={{ marginTop: t.spacing.md }}>
-            Recebido: o que já caiu na conta. A receber: plantões feitos, dentro do prazo. Previsto: plantões ainda
-            agendados.
-          </Txt>
-        </Card>
+              <Txt variant="money" style={{ marginTop: 2 }}>
+                {formatBRL(resumo.total)}
+              </Txt>
+              {resumo.total > 0 && (
+                <View
+                  accessibilityLabel={`Recebido ${formatBRL(resumo.recebido)} de ${formatBRL(resumo.total)}`}
+                  style={{
+                    flexDirection: "row",
+                    height: 8,
+                    borderRadius: 4,
+                    overflow: "hidden",
+                    backgroundColor: t.colors.surfaceAlt,
+                    marginVertical: t.spacing.md,
+                  }}
+                >
+                  <View style={{ flex: resumo.recebido, backgroundColor: t.colors.success }} />
+                  <View style={{ flex: resumo.total - resumo.recebido, backgroundColor: "transparent" }} />
+                </View>
+              )}
+              <View style={{ flexDirection: "row", gap: t.spacing.lg, marginTop: resumo.total > 0 ? 0 : t.spacing.md }}>
+                <Metrica rotulo="Recebido" valor={resumo.recebido} tom="success" />
+                <Metrica rotulo="A receber" valor={resumo.aReceber} tom="warning" />
+                <Metrica rotulo="Previsto" valor={resumo.previsto} tom="primary" />
+              </View>
+              {resumo.atrasado > 0 && (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: t.spacing.sm,
+                    marginTop: t.spacing.md,
+                    paddingTop: t.spacing.md,
+                    borderTopWidth: 1,
+                    borderTopColor: t.colors.border,
+                  }}
+                >
+                  <Icone name="alert-circle-outline" size={18} color={t.colors.danger} />
+                  <Txt variant="label" tom="danger" style={{ flex: 1 }}>
+                    {`Atrasado neste mês: ${formatBRL(resumo.atrasado)}`}
+                  </Txt>
+                </View>
+              )}
+              <Txt variant="caption" tom="faint" style={{ marginTop: t.spacing.md }}>
+                Recebido: o que já caiu na conta. A receber: plantões feitos, dentro do prazo. Previsto: plantões ainda
+                agendados.
+              </Txt>
+            </Card>
+          </AlturaSuave>
+        </Animated.View>
       </View>
 
       {/* -------------------------------- atrasados -------------------------------- */}
@@ -220,23 +247,27 @@ export default function Financeiro() {
           />
         )}
 
-        {grupos.length === 0 && dados.status !== "erro" && (
-          <Card>
-            <EmptyState
-              icone="cash-clock"
-              titulo={semNada ? "Nada para receber ainda" : `Nada previsto para ${formatMesAno(mes)}`}
-              descricao={
-                semNada
-                  ? "Lance plantões na Agenda. A data em que cada um cai na conta vem da regra de pagamento do local."
-                  : "Use as setas para ver outros meses, ou toque num mês em “Como vem por aí”."
-              }
-            />
-          </Card>
-        )}
+        <Animated.View style={estiloEntrada}>
+          <AlturaSuave estilo={{ gap: t.spacing.md }}>
+            {grupos.length === 0 && dados.status !== "erro" && (
+              <Card>
+                <EmptyState
+                  icone="cash-clock"
+                  titulo={semNada ? "Nada para receber ainda" : `Nada previsto para ${formatMesAno(mes)}`}
+                  descricao={
+                    semNada
+                      ? "Lance plantões na Agenda. A data em que cada um cai na conta vem da regra de pagamento do local."
+                      : "Use as setas para ver outros meses, ou toque num mês em “Como vem por aí”."
+                  }
+                />
+              </Card>
+            )}
 
-        {grupos.map((g) => (
-          <CartaoGrupo key={g.chave} grupo={g} onPress={() => setAberto(g)} />
-        ))}
+            {grupos.map((g) => (
+              <CartaoGrupo key={g.chave} grupo={g} onPress={() => setAberto(g)} />
+            ))}
+          </AlturaSuave>
+        </Animated.View>
       </View>
 
       {/* ------------------------------ proximos meses ------------------------------ */}

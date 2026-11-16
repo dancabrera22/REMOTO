@@ -245,6 +245,12 @@ async function main() {
   await page.getByText("voltar para este mês", { exact: true }).click();
   check("voltar para este mes", await tem(nomeDoMes(hoje)));
 
+  // A tela rola dentro de um ScrollView, e os passos acima deixaram a pagina rolada: volta ao topo para o
+  // cartao do mes ficar abaixo do cabecalho (um dedo no cabecalho nao desliza o mes).
+  await page.getByRole("button", { name: "Mês anterior" }).evaluate((el) => {
+    for (let p = el.parentElement; p; p = p.parentElement) if (p.scrollHeight > p.clientHeight + 1 && getComputedStyle(p).overflowY !== "visible") p.scrollTop = 0;
+  });
+  await espera(300);
   const yCard = (await page.getByRole("button", { name: "Mês anterior" }).boundingBox()).y + 10;
   await deslizar(330, yCard, 90);
   check("deslizar para a esquerda avanca o mes", await tem(nomeDoMes(new Date(hoje.getFullYear(), hoje.getMonth() + 1, 1))));

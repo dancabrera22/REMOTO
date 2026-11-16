@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from "react";
-import { Animated, Easing, View } from "react-native";
+import { Animated, Easing, View, type ViewStyle } from "react-native";
 
 /**
  * Faz um bloco que muda de altura (uma lista que ganha ou perde cartoes) crescer ou
@@ -13,7 +13,16 @@ import { Animated, Easing, View } from "react-native";
  * Antes da primeira medida, o bloco se comporta como uma View comum (sem moldura): so
  * depois de saber a altura e que ele passa a animar, entao a primeira tela nunca pisca.
  */
-export function AlturaSuave({ children, duracao = 240 }: { children: ReactNode; duracao?: number }) {
+export function AlturaSuave({
+  children,
+  duracao = 240,
+  estilo,
+}: {
+  children: ReactNode;
+  duracao?: number;
+  /** Estilo do conteudo (por exemplo, o `gap` entre os cartoes de uma lista). */
+  estilo?: ViewStyle;
+}) {
   const altura = useRef(new Animated.Value(0)).current;
   const [medido, setMedido] = useState(false);
 
@@ -21,7 +30,7 @@ export function AlturaSuave({ children, duracao = 240 }: { children: ReactNode; 
     <Animated.View style={medido ? { height: altura, overflow: "hidden" } : undefined}>
       <View
         // Depois de medido, o conteudo sai do fluxo: a moldura nao o estica, e ele mede o tamanho que realmente tem.
-        style={medido ? { position: "absolute", top: 0, left: 0, right: 0 } : undefined}
+        style={medido ? [estilo, { position: "absolute", top: 0, left: 0, right: 0 }] : estilo}
         onLayout={(e) => {
           const h = e.nativeEvent.layout.height;
           if (!medido) {

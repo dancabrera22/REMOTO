@@ -173,7 +173,7 @@ quebrei o código de propósito (trocar `<=` por `<`, tirar o ajuste de dia 31,
 fazer o cancelado contar no valor…) — 8 mutações na regra de pagamento, 18 em
 plantões, 19 em recorrência, 38 nas escalas do banco, 7 em pagamento/exclusão,
 18 em feriados, 25 no motor financeiro, 16 na baixa em lote, 33 na sincronização do
-calendário, 20 no conteúdo do evento, 50 no backup, 34 na planilha e 6 no deslizar suave (altura, destaque, legenda, esmaecer, lista), todas detectadas. As que sobreviveram mostraram lacunas: ou um caso sem teste
+calendário, 20 no conteúdo do evento, 50 no backup, 34 na planilha e 8 no deslizar suave (altura, destaque, legenda, esmaecer, lista, e o mesmo no Financeiro), todas detectadas. As que sobreviveram mostraram lacunas: ou um caso sem teste
 (que ganhou teste) ou código redundante (que foi removido).
 
 ### Testando a interface
@@ -209,7 +209,8 @@ npm run test:telas                   # retratos das quatro abas nos dois temas
 `test:suave` não olha só o resultado: grava a tela **a cada quadro** enquanto o mês é arrastado e
 assenta, e falha se o conteúdo de baixo der um salto (mês de 5 para 6 semanas = 56 px), se o dia
 selecionado só aparecer depois de assentar, se a legenda «voltar para hoje» empurrar o título ou se a
-lista do dia trocar sem esmaecer. Ele acha sozinho dois meses seguidos com número de semanas diferente,
+lista do dia trocar sem esmaecer. No Financeiro, onde o mês não acompanha o dedo, ele confere que o conteúdo novo entra
+esmaecido e que a lista muda de altura deslizando. Ele acha sozinho dois meses seguidos com número de semanas diferente,
 então não depende da data de hoje.
 
 `test:dados` baixa o arquivo de backup e a planilha de verdade, escolhe um arquivo pelo
