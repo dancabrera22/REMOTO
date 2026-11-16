@@ -473,14 +473,14 @@ function Formulario({
             )}
 
             <Campo
-              rotulo="Se cair no fim de semana"
-              dica={`${descreveAjuste(ajuste)}. Feriados ainda não são considerados.`}
+              rotulo="Se cair em fim de semana ou feriado"
+              dica={`${descreveAjuste(ajuste)}. Feriados nacionais e Carnaval entram; os estaduais e municipais, não.`}
             >
               <Segmentado
                 opcoes={[
                   { valor: "nenhum", rotulo: "Manter" },
-                  { valor: "proximo", rotulo: "Segunda" },
-                  { valor: "anterior", rotulo: "Sexta" },
+                  { valor: "proximo", rotulo: "Dia útil seguinte" },
+                  { valor: "anterior", rotulo: "Dia útil anterior" },
                 ]}
                 valor={ajuste}
                 onChange={setAjuste}

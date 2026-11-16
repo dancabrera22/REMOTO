@@ -11,6 +11,9 @@
 import { report } from "./helpers.mjs";
 import { testes as cores } from "./cores.mjs";
 import { testes as esquema } from "./esquema.mjs";
+import { testes as feriados } from "./feriados.mjs";
+import { testes as financeiro } from "./financeiro.mjs";
+import { testes as financeiroDb } from "./financeiro-db.mjs";
 import { testes as locais } from "./locais.mjs";
 import { testes as logica } from "./logica.mjs";
 import { testes as pagamento } from "./pagamento.mjs";
@@ -27,6 +30,12 @@ cores();
 
 console.log("\n── regra de pagamento");
 pagamento();
+
+console.log("\n── feriados e dia útil");
+feriados();
+
+console.log("\n── financeiro (situação, grupos e somas)");
+financeiro();
 
 console.log("\n── esquema do banco");
 esquema();
@@ -45,5 +54,8 @@ recorrencia();
 
 console.log("\n── escalas no banco (criar, editar, excluir, falhas no meio)");
 await seriesDb();
+
+console.log("\n── financeiro no banco (consulta, baixa em lote, falhas)");
+await financeiroDb();
 
 process.exit(report() ? 0 : 1);

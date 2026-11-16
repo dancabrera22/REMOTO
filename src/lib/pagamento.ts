@@ -1,15 +1,16 @@
 /**
  * Regra de pagamento de um local: responde "quando esse plantao vai ser pago".
  *
- * Funcao pura, sem banco nem tela. Vive aqui, na Etapa 2, porque o formulario
- * de local precisa mostrar na hora "um plantao hoje seria pago em tal dia" —
- * quem cadastra uma regra de fechamento (fecha dia 20, paga dia 10) so confia
- * nela se ver o resultado. A Etapa 5 reutiliza a mesma funcao para a previsao.
+ * Funcao pura, sem banco nem tela. Nasceu na Etapa 2, porque o formulario de
+ * local precisa mostrar na hora "um plantao hoje seria pago em tal dia" — quem
+ * cadastra uma regra de fechamento (fecha dia 20, paga dia 10) so confia nela se
+ * ver o resultado. A Etapa 5 usa a mesma funcao para a previsao financeira.
  *
  * Os imports levam `.ts` para o Node conseguir rodar este arquivo nos testes
  * sem empacotador.
  */
 import { diasNoMes, inicioDoDia, instante, somaDias } from "./datetime.ts";
+import { diaUtilMaisProximo } from "./feriados.ts";
 
 export type TipoRegra = "dia_mes_seguinte" | "dias_apos" | "fechamento";
 export type AjusteDiaUtil = "nenhum" | "proximo" | "anterior";
@@ -24,7 +25,7 @@ export interface RegraPagamento {
   diaFechamento: number | null;
   /** Quantos meses depois do mes do plantao (ou do fechamento) o pagamento cai. */
   mesesAdiante: number;
-  /** O que fazer quando a data cai em sabado ou domingo. */
+  /** O que fazer quando a data cai em fim de semana ou feriado. */
   ajusteDiaUtil: AjusteDiaUtil;
 }
 
@@ -50,18 +51,13 @@ function diaNoMesClamp(ano: number, mes0: number, dia: number): number {
 }
 
 /**
- * Empurra sabado e domingo para o dia util mais proximo.
- *
- * Considera so fim de semana. Feriados nao entram: exigem uma tabela que muda
- * por ano e por cidade, e fica para a Etapa 5, onde a previsao passa a ser
- * exibida e o erro de um dia importa de verdade.
+ * Empurra sabado, domingo e feriado nacional (ou dia sem expediente bancario:
+ * Carnaval, Corpus Christi) para o dia util mais proximo, para a frente ou para
+ * tras. Feriado estadual e municipal nao entram: ver `feriados.ts`.
  */
 export function ajustaDiaUtil(ms: number, modo: AjusteDiaUtil): number {
   if (modo === "nenhum") return ms;
-  const dia = new Date(ms).getDay();
-  if (dia === 6) return somaDias(ms, modo === "proximo" ? 2 : -1);
-  if (dia === 0) return somaDias(ms, modo === "proximo" ? 1 : -2);
-  return ms;
+  return diaUtilMaisProximo(ms, modo === "proximo" ? 1 : -1);
 }
 
 /**
@@ -176,10 +172,10 @@ export function descreveRegra(regra: RegraPagamento): string {
 export function descreveAjuste(ajuste: AjusteDiaUtil): string {
   switch (ajuste) {
     case "nenhum":
-      return "Mantém a data, mesmo em fim de semana";
+      return "Mantém a data, mesmo em fim de semana ou feriado";
     case "proximo":
-      return "Fim de semana passa para a segunda-feira";
+      return "Fim de semana ou feriado passa para o próximo dia útil";
     case "anterior":
-      return "Fim de semana volta para a sexta-feira";
+      return "Fim de semana ou feriado volta para o dia útil anterior";
   }
 }
