@@ -219,6 +219,33 @@ export function gradeDoMes(referenciaMs: number, hojeMs = Date.now()): CelulaDia
   return semanas;
 }
 
+/**
+ * O dia que fica selecionado ao abrir um mes: hoje, se for o mes de hoje; senao, o dia 1.
+ * Mora aqui (e nao na tela) porque duas partes precisam concordar: a agenda, que
+ * seleciona o dia, e o calendario, que mostra esse dia no mes que entra deslizando
+ * — assim o destaque chega junto com o mes, em vez de aparecer so depois.
+ */
+export function diaAoAbrirMes(mesMs: number, hojeMs: number): number {
+  return inicioDoMes(mesMs) === inicioDoMes(hojeMs) ? inicioDoDia(hojeMs) : inicioDoMes(mesMs);
+}
+
+/** Quantas semanas a grade do mes tem (4, 5 ou 6) — a mesma conta de `gradeDoMes`, sem montar as celulas. */
+export function linhasDoMes(mesMs: number): number {
+  const d = new Date(mesMs);
+  const primeiroDia = new Date(d.getFullYear(), d.getMonth(), 1).getDay();
+  return Math.ceil((primeiroDia + diasNoMes(d.getFullYear(), d.getMonth())) / 7);
+}
+
+/** Altura de um mes de `linhas` semanas, sendo `alturaDaLinha` a de uma semana e `espaco` o vao entre elas. */
+export function alturaDoMes(linhas: number, alturaDaLinha: number, espaco: number): number {
+  return linhas * alturaDaLinha + Math.max(0, linhas - 1) * espaco;
+}
+
+/** O inverso: dada a altura medida de um mes, quanto mede cada semana. */
+export function alturaDaLinha(alturaMedida: number, linhas: number, espaco: number): number {
+  return (alturaMedida - Math.max(0, linhas - 1) * espaco) / Math.max(1, linhas);
+}
+
 /** "hoje", "amanhã", "em 3 dias", "há 2 dias" — para listas e avisos. */
 export function diasRelativos(ms: number, hojeMs = Date.now()): string {
   const diff = Math.round((inicioDoDia(ms) - inicioDoDia(hojeMs)) / 86400000);

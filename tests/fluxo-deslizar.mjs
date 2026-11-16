@@ -70,6 +70,11 @@ async function main() {
   /** A pagina de um mes (existe tambem escondida da acessibilidade, entao vai por atributo). */
   const pagina = (d) => page.locator(`[aria-label="${nomeDoMes(d)}"]`);
   const paginas = () => page.locator("[role=group][aria-label*=' de 20']").count();
+  /** So a pagina que a pessoa enxerga (as vizinhas, quando montadas, ficam escondidas da acessibilidade). */
+  const visiveis = () => page.locator("[role=group][aria-label*=' de 20']:not([aria-hidden=true])").count();
+  /** O calendario esta no meio de uma troca (arrastando ou deslizando)? Ele avisa por aria-busy. */
+  const movendo = async () => (await page.locator("[aria-busy=true]").count()) > 0;
+  const aguardaParar = () => ate(async () => !(await movendo()), 4000);
   const caixa = async (d) => (await pagina(d).count()) ? pagina(d).first().boundingBox() : null;
   /** Pontinhos azuis (quadrados de 6 px) dentro da pagina de um mes. */
   const pontos = (d) =>
@@ -92,8 +97,13 @@ async function main() {
     await espera(60);
   }
 
-  /** Espera o calendario terminar de assentar (so a pagina do mes, parada) antes do proximo gesto. */
-  const assenta = () => ate(async () => (await paginas()) === 1, 4000);
+  /** Espera o calendario terminar de assentar antes do proximo gesto. */
+  const assenta = async () => {
+    await aguardaParar();
+    // Os vizinhos sao montados quando a tela fica parada um instante: espera isso terminar para o proximo
+    // gesto nao competir com a montagem (um toque rapido demais, logo apos assentar, pode ser lido como lento).
+    await ate(async () => (await paginas()) === 3, 4000);
+  };
 
   /* --------------------------- preparo: um plantao no mes que vem --------------------------- */
 
@@ -120,20 +130,32 @@ async function main() {
 
   /* ------------------------------------ parado ------------------------------------ */
 
-  igual("parado, ha uma pagina de mes so (os vizinhos nem existem)", await paginas(), 1);
+  igual("parado, ha uma pagina de mes so a vista", await visiveis(), 1);
+  await ate(async () => (await paginas()) === 3, 3000); // os vizinhos sao montados quando a tela fica parada um instante
+  igual("os dois meses vizinhos ja estao montados, esperando (o arrasto nao precisa monta-los)", await paginas(), 3);
+  const vizinhasFora = await page.evaluate(() => {
+    const vista = document.querySelector("[role=group][aria-label*=' de 20']:not([aria-hidden=true])").getBoundingClientRect();
+    return [...document.querySelectorAll("[role=group][aria-hidden=true]")].every((e) => {
+      const r = e.getBoundingClientRect(); // fora da janela do calendario = cortada pelo overflow
+      return r.right <= vista.left + 1 || r.left >= vista.right - 1;
+    });
+  });
+  check("e elas ficam fora da vista (e escondidas da acessibilidade)", vizinhasFora);
+  igual("um dia continua sendo UM botao para leitor de tela (a vizinha nao duplica)", await page.getByRole("button", { name: "12", exact: true }).count(), 1);
   const parado = await caixa(atual);
   const W = parado.width;
   const y = parado.y + parado.height / 2;
   const x0 = parado.x;
   check("a pagina atual e o mes de hoje", (await tem(nomeDoMes(atual))));
-  igual("os pontinhos do mes seguinte nao poluem a tela parada", await page.locator("div").evaluateAll((els, cor) => els.filter((e) => getComputedStyle(e).backgroundColor === cor && Math.round(e.getBoundingClientRect().width) === 6).length, AZUL), 0);
+  igual("os pontinhos do mes seguinte nao poluem a tela parada (so existem fora da vista)", await page.locator("div").evaluateAll((els, cor) => els.filter((e) => { const r = e.getBoundingClientRect(); return getComputedStyle(e).backgroundColor === cor && Math.round(r.width) === 6 && r.right > 0 && r.left < window.innerWidth; }).length, AZUL), 0);
 
   /* ------------------------ o mes acompanha o dedo, sem soltar ------------------------ */
 
   await toca(x0 + W * 0.85, y);
   await arrasta(x0 + W * 0.85, x0 + W * 0.85 - 140, y);
 
-  igual("ao arrastar, os vizinhos aparecem (3 paginas)", await paginas(), 3);
+  igual("ao arrastar, o calendario avisa que esta em movimento", await movendo(), true);
+  igual("e os tres meses estao la", await paginas(), 3);
   const durante = await caixa(atual);
   check("o mes atual SEGUE o dedo (140 px para a esquerda)", Math.abs(durante.x - (x0 - 140)) < 6, `x ${Math.round(durante.x - x0)}`);
   const vizinho = await caixa(prox);
@@ -153,7 +175,7 @@ async function main() {
   /* ------------------------------ soltar: arrasto curto volta ------------------------------ */
 
   await solta();
-  check("arrasto curto: ao soltar, volta e fica no mes atual", Boolean(await ate(async () => (await paginas()) === 1, 3000)));
+  check("arrasto curto: ao soltar, volta e fica no mes atual", Boolean(await aguardaParar()));
   const voltou = await caixa(atual);
   check("de volta ao lugar de antes", Math.abs(voltou.x - x0) < 3, `x ${Math.round(voltou.x - x0)}`);
   check("mes atual no titulo", await tem(nomeDoMes(atual), 1500));
@@ -164,7 +186,7 @@ async function main() {
   await arrasta(x0 + W * 0.85, x0 + W * 0.85 - 170, y);
   await solta();
   check("arrasto longo: termina de deslizar e mostra o proximo mes", await tem(nomeDoMes(prox), 4000));
-  check("e volta a ser uma pagina so", Boolean(await ate(async () => (await paginas()) === 1, 3000)));
+  check("e o movimento termina (uma pagina so a vista)", Boolean(await aguardaParar()) && (await visiveis()) === 1);
   const assentou = await caixa(prox);
   check("assentado no lugar", Boolean(assentou) && Math.abs(assentou.x - x0) < 3, `x ${assentou ? Math.round(assentou.x - x0) : "?"}`);
   check("o pontinho do plantao esta no mes novo, sem piscar", (await pontos(prox)) === 1);
@@ -197,7 +219,7 @@ async function main() {
     await move(x0 + W * 0.5 + i, y - i * 12); // sobe, quase sem ir para o lado
     await espera(14);
   }
-  igual("rolar na vertical nao arrasta o calendario", await paginas(), 1);
+  igual("rolar na vertical nao arrasta o calendario", await movendo(), false);
   const parte = await caixa(prox);
   check("o mes nao saiu do lugar", Math.abs(parte.x - x0) < 3);
   await solta();
@@ -215,7 +237,7 @@ async function main() {
   }
   check("a seta desliza o mes (passa pelo meio do caminho), nao troca de uma vez", meioDoCaminho);
   check("e termina no mes anterior", await tem(nomeDoMes(atual), 4000));
-  check("de volta a uma pagina so", Boolean(await ate(async () => (await paginas()) === 1, 3000)));
+  check("a seta termina o movimento", Boolean(await aguardaParar()));
   check("e o botao de um dia funciona depois de tudo isso", await page.getByRole("button", { name: "12", exact: true }).click().then(() => true).catch(() => false));
 
   igual("nenhum erro no console", erros.length, 0);

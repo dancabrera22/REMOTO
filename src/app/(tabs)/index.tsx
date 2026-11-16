@@ -1,6 +1,7 @@
 import { useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Animated, Platform, View } from "react-native";
+import { AlturaSuave } from "@/components/altura-suave";
 import { CalendarioMes } from "@/components/calendario-mes";
 import { ExcluirPlantao } from "@/components/escopo-serie";
 import { Folha } from "@/components/folha";
@@ -14,6 +15,7 @@ import { useBanco, useConsulta, useEstadoBanco, useInvalidar } from "@/db/provid
 import { garanteHorizonte } from "@/db/series";
 import {
   chaveDia,
+  diaAoAbrirMes,
   diasRelativos,
   fimDoDia,
   formatData,
@@ -92,8 +94,20 @@ export default function Agenda() {
   // dia 1. Sem isso a lista de baixo continuaria mostrando o dia de outro mes.
   const trocarMes = (ms: number) => {
     setReferencia(ms);
-    setSelecionado(inicioDoMes(ms) === inicioDoMes(hoje) ? hoje : inicioDoMes(ms));
+    setSelecionado(diaAoAbrirMes(ms, hoje));
   };
+
+  // Ao trocar de mes, a lista do dia e o resumo mudam de uma vez. Para isso nao parecer um
+  // "pisca", eles esmaecem enquanto o mes termina de deslizar (o calendario avisa por `emTroca`),
+  // a troca acontece com tudo esmaecido, e voltam suavemente com o conteudo novo.
+  const esmaece = useRef(new Animated.Value(1)).current;
+  const anima = (alvo: number, duracao: number) =>
+    Animated.timing(esmaece, { toValue: alvo, duration: duracao, useNativeDriver: Platform.OS !== "web" }).start();
+  const mesDaReferencia = inicioDoMes(referencia);
+  useEffect(() => {
+    anima(1, 240);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mesDaReferencia]);
 
   const novoNoDia = (dia: string) =>
     semLocais ? router.push("/local/novo") : router.push({ pathname: "/plantao/[id]", params: { id: "novo", dia } });
@@ -123,6 +137,8 @@ export default function Agenda() {
             setReferencia(ms);
           }}
           onTrocarMes={trocarMes}
+          selecionadoAoTrocar={(mes) => diaAoAbrirMes(mes, hoje)}
+          emTroca={(ativa) => anima(ativa ? 0.35 : 1, ativa ? 150 : 200)}
           onSegurar={(ms) => {
             setSelecionado(ms);
             setReferencia(ms);
@@ -132,55 +148,57 @@ export default function Agenda() {
         />
       </Card>
 
-      <View>
+      <Animated.View style={{ opacity: esmaece }}>
         <Secao acao={<Pill tom="normal">{diasRelativos(selecionado)}</Pill>}>
           {`${formatDiaSemanaLongo(selecionado)}, ${formatData(selecionado)}`}
         </Secao>
 
-        {plantoes.status === "erro" && (
-          <Card style={{ borderColor: t.colors.danger }}>
-            <Txt variant="bodyStrong" tom="danger">
-              Não consegui ler o banco
-            </Txt>
-            <Txt variant="caption" tom="muted" style={{ marginTop: 4 }}>
-              {plantoes.erro}
-            </Txt>
-          </Card>
-        )}
+        <AlturaSuave>
+          {plantoes.status === "erro" && (
+            <Card style={{ borderColor: t.colors.danger }}>
+              <Txt variant="bodyStrong" tom="danger">
+                Não consegui ler o banco
+              </Txt>
+              <Txt variant="caption" tom="muted" style={{ marginTop: 4 }}>
+                {plantoes.erro}
+              </Txt>
+            </Card>
+          )}
 
-        {doDia.length === 0 && plantoes.status !== "erro" && (
-          <Card>
-            <EmptyState
-              icone="calendar-plus"
-              titulo={semLocais ? "Cadastre um local primeiro" : "Nenhum plantão neste dia"}
-              descricao={
-                semLocais
-                  ? "O valor, os descontos e a data em que você recebe vêm do local."
-                  : "Toque em Novo — ou segure o dia no calendário — para lançar um plantão nesta data."
-              }
-            >
-              <Button icone={semLocais ? "map-marker-plus-outline" : "plus"} onPress={novo}>
-                {semLocais ? "Cadastrar local" : "Novo plantão"}
-              </Button>
-            </EmptyState>
-          </Card>
-        )}
+          {doDia.length === 0 && plantoes.status !== "erro" && (
+            <Card>
+              <EmptyState
+                icone="calendar-plus"
+                titulo={semLocais ? "Cadastre um local primeiro" : "Nenhum plantão neste dia"}
+                descricao={
+                  semLocais
+                    ? "O valor, os descontos e a data em que você recebe vêm do local."
+                    : "Toque em Novo — ou segure o dia no calendário — para lançar um plantão nesta data."
+                }
+              >
+                <Button icone={semLocais ? "map-marker-plus-outline" : "plus"} onPress={novo}>
+                  {semLocais ? "Cadastrar local" : "Novo plantão"}
+                </Button>
+              </EmptyState>
+            </Card>
+          )}
 
-        <View style={{ gap: t.spacing.md }}>
-          {doDia.map((p) => (
-            <Deslizavel
-              key={p.id}
-              onExcluir={() => setExcluindo(p)}
-              rotuloAcessivel={`Excluir plantão de ${p.local.nome}`}
-            >
-              <CartaoPlantao
-                plantao={p}
-                onPress={() => router.push({ pathname: "/plantao/[id]", params: { id: String(p.id) } })}
-              />
-            </Deslizavel>
-          ))}
-        </View>
-      </View>
+          <View style={{ gap: t.spacing.md }}>
+            {doDia.map((p) => (
+              <Deslizavel
+                key={p.id}
+                onExcluir={() => setExcluindo(p)}
+                rotuloAcessivel={`Excluir plantão de ${p.local.nome}`}
+              >
+                <CartaoPlantao
+                  plantao={p}
+                  onPress={() => router.push({ pathname: "/plantao/[id]", params: { id: String(p.id) } })}
+                />
+              </Deslizavel>
+            ))}
+          </View>
+        </AlturaSuave>
+      </Animated.View>
 
       {menuDia !== null && (
         <Folha
@@ -222,48 +240,52 @@ export default function Agenda() {
         />
       )}
 
-      <Card>
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-          <Secao>Resumo do mês</Secao>
-          {resumo.aConfirmar > 0 && (
-            <Pill tom="warning" icone="clock-alert-outline">
-              {resumo.aConfirmar} a confirmar
-            </Pill>
-          )}
-        </View>
-        <View style={{ flexDirection: "row", gap: t.spacing.lg }}>
-          <Metrica rotulo="Plantões" valor={String(resumo.plantoes)} />
-          <Metrica rotulo="Horas" valor={resumo.minutos ? formatDuracao(resumo.minutos) : "0h"} />
-          <Metrica rotulo="Líquido" valor={formatBRL(resumo.liquido)} grande />
-        </View>
-        {resumo.recebido > 0 && (
-          <View
-            style={{
-              flexDirection: "row",
-              gap: t.spacing.lg,
-              marginTop: t.spacing.md,
-              paddingTop: t.spacing.md,
-              borderTopWidth: 1,
-              borderTopColor: t.colors.border,
-            }}
-          >
-            <View style={{ flex: 1, gap: 2 }}>
-              <Txt variant="caption" tom="muted">
-                Já recebido
-              </Txt>
-              <Txt variant="bodyStrong" tom="success">
-                {formatBRL(resumo.recebido)}
-              </Txt>
+      <Animated.View style={{ opacity: esmaece }}>
+        <AlturaSuave>
+          <Card>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <Secao>Resumo do mês</Secao>
+              {resumo.aConfirmar > 0 && (
+                <Pill tom="warning" icone="clock-alert-outline">
+                  {resumo.aConfirmar} a confirmar
+                </Pill>
+              )}
             </View>
-            <View style={{ flex: 1, gap: 2 }}>
-              <Txt variant="caption" tom="muted">
-                A receber
-              </Txt>
-              <Txt variant="bodyStrong">{formatBRL(resumo.liquido - resumo.recebido)}</Txt>
+            <View style={{ flexDirection: "row", gap: t.spacing.lg }}>
+              <Metrica rotulo="Plantões" valor={String(resumo.plantoes)} />
+              <Metrica rotulo="Horas" valor={resumo.minutos ? formatDuracao(resumo.minutos) : "0h"} />
+              <Metrica rotulo="Líquido" valor={formatBRL(resumo.liquido)} grande />
             </View>
-          </View>
-        )}
-      </Card>
+            {resumo.recebido > 0 && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  gap: t.spacing.lg,
+                  marginTop: t.spacing.md,
+                  paddingTop: t.spacing.md,
+                  borderTopWidth: 1,
+                  borderTopColor: t.colors.border,
+                }}
+              >
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Txt variant="caption" tom="muted">
+                    Já recebido
+                  </Txt>
+                  <Txt variant="bodyStrong" tom="success">
+                    {formatBRL(resumo.recebido)}
+                  </Txt>
+                </View>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Txt variant="caption" tom="muted">
+                    A receber
+                  </Txt>
+                  <Txt variant="bodyStrong">{formatBRL(resumo.liquido - resumo.recebido)}</Txt>
+                </View>
+              </View>
+            )}
+          </Card>
+        </AlturaSuave>
+      </Animated.View>
     </Screen>
   );
 }

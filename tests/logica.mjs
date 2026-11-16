@@ -12,8 +12,11 @@ import {
   valorPorHora,
 } from "../src/lib/money.ts";
 import {
+  alturaDaLinha,
+  alturaDoMes,
   chaveDia,
   deChaveDia,
+  diaAoAbrirMes,
   diasRelativos,
   formatData,
   formatDuracao,
@@ -21,6 +24,7 @@ import {
   formatMesAno,
   gradeDoMes,
   instante,
+  linhasDoMes,
   mesmoDia,
   minutosEntre,
   somaDias,
@@ -116,6 +120,41 @@ export function testes() {
   // Mes que atravessa seis semanas (maio de 2027 comeca num sabado).
   const maio = gradeDoMes(instante(2027, 4, 15), sabado);
   check("mes longo usa as semanas necessarias", maio.length >= 5 && maio.length <= 6, `${maio.length} semanas`);
+
+  /* ---- a altura do calendario durante o deslize: sai do numero de semanas ---- */
+
+  // A conta curta (sem montar as celulas) tem de dar sempre o mesmo que a grade de verdade.
+  let divergencias = 0;
+  let total = 0;
+  const vistos = new Set();
+  for (let ano = 1990; ano <= 2060; ano++) {
+    for (let m = 0; m < 12; m++) {
+      const n = linhasDoMes(instante(ano, m, 15));
+      vistos.add(n);
+      if (n !== gradeDoMes(instante(ano, m, 15), sabado).length) divergencias++;
+      total++;
+    }
+  }
+  igual(`linhasDoMes == gradeDoMes em ${total} meses (1990 a 2060)`, divergencias, 0);
+  check("e o calendario tem meses de 4, 5 e 6 semanas", vistos.has(4) && vistos.has(5) && vistos.has(6), [...vistos].sort().join(","));
+  igual("fevereiro de 2026 (comeca no domingo, 28 dias): 4 semanas", linhasDoMes(instante(2026, 1, 10)), 4);
+  igual("janeiro de 2027 (comeca na sexta, 31 dias): 6 semanas", linhasDoMes(instante(2027, 0, 10)), 6);
+  igual("dezembro de 2026 (comeca na terca, 31 dias): 5 semanas", linhasDoMes(instante(2026, 11, 10)), 5);
+
+  igual("5 semanas de 54 px com 2 px entre elas: 278 px", alturaDoMes(5, 54, 2), 278);
+  igual("6 semanas: 334 px, ou seja, 56 px a mais por semana", alturaDoMes(6, 54, 2) - alturaDoMes(5, 54, 2), 56);
+  igual("uma semana so nao tem vao", alturaDoMes(1, 54, 2), 54);
+  igual("medir e desmedir: a altura de uma semana sai da altura do mes", alturaDaLinha(alturaDoMes(5, 54.5, 2), 5, 2), 54.5);
+  igual("sem semanas, nao divide por zero", Number.isFinite(alturaDaLinha(10, 0, 2)), true);
+
+  /* ---- o dia selecionado ao abrir um mes (o calendario mostra esse dia no mes que entra) ---- */
+
+  const quarta = instante(2026, 10, 18, 15, 30); // 18/11/2026, tarde
+  igual("no mes de hoje, abre em hoje (meia-noite)", diaAoAbrirMes(instante(2026, 10, 1), quarta), instante(2026, 10, 18));
+  igual("em qualquer dia do mes de hoje", diaAoAbrirMes(instante(2026, 10, 29, 23, 59), quarta), instante(2026, 10, 18));
+  igual("em outro mes, abre no dia 1", diaAoAbrirMes(instante(2026, 11, 20), quarta), instante(2026, 11, 1));
+  igual("mes passado tambem: dia 1", diaAoAbrirMes(instante(2026, 9, 31), quarta), instante(2026, 9, 1));
+  igual("mesmo mes de OUTRO ano nao e o mes de hoje", diaAoAbrirMes(instante(2027, 10, 18), quarta), instante(2027, 10, 1));
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

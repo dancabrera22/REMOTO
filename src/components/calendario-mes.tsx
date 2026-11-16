@@ -1,10 +1,14 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Animated, Easing, PanResponder, Platform, Pressable, View } from "react-native";
+import { memo, startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Animated, Easing, PanResponder, Pressable, View } from "react-native";
 import {
+  alturaDaLinha,
+  alturaDoMes,
+  chaveDia,
   diasSemanaMinimo,
   formatMesAno,
   gradeDoMes,
   inicioDoMes,
+  linhasDoMes,
   mesmoDia,
   somaMeses,
 } from "@/lib/datetime";
@@ -29,7 +33,7 @@ export const MAX_PONTOS = 3;
  * importa: no dia selecionado o quadrado e verde-escuro, e um ponto dentro dele
  * perderia a cor do local — que e a unica pista de onde voce estara naquela data.
  */
-export function DiaCelula({
+function DiaCelulaBase({
   dia,
   selecionado = false,
   hoje = false,
@@ -114,6 +118,26 @@ export function DiaCelula({
   );
 }
 
+const mesmasCores = (a: readonly string[] | undefined, b: readonly string[] | undefined) =>
+  a === b || (a !== undefined && b !== undefined && a.length === b.length && a.every((c, i) => c === b[i]));
+
+/**
+ * Memoizada comparando as cores pelo CONTEUDO: quando a consulta devolve de novo os
+ * mesmos plantoes (uma lista nova, igual), nenhuma das 42 celulas precisa ser
+ * redesenhada — e redesenhar tudo no instante em que o mes assenta era um dos
+ * motivos de a tela dar um tranco.
+ */
+export const DiaCelula = memo(DiaCelulaBase, (a, b) =>
+  a.dia === b.dia &&
+  a.selecionado === b.selecionado &&
+  a.hoje === b.hoje &&
+  a.foraDoMes === b.foraDoMes &&
+  a.fimDeSemana === b.fimDeSemana &&
+  a.onPress === b.onPress &&
+  a.onSegurar === b.onSegurar &&
+  mesmasCores(a.cores, b.cores),
+);
+
 /** Quanto do mes tem de ser arrastado (em fracao da largura) para a troca valer ao soltar. */
 const FRACAO_PARA_TROCAR = 0.25;
 
@@ -121,8 +145,69 @@ const FRACAO_PARA_TROCAR = 0.25;
 const VELOCIDADE_DE_ARREMESSO = 0.4;
 const DISTANCIA_DE_ARREMESSO = 24;
 
+/** Vao entre uma semana e a seguinte (o `gap` da grade) — a altura de um mes sai disso e da altura medida de uma semana. */
+const ESPACO_ENTRE_SEMANAS = 2;
+
+/** Espera parado, assim, antes de montar os meses vizinhos fora da vista (ver `prontos`). */
+const ESPERA_PARA_PREPARAR_MS = 280;
+
+const mesmasCoresCelula = mesmasCores;
+
+/**
+ * Uma celula do mes. Existe para que `onPress`/`onSegurar` de cada dia tenham identidade
+ * estavel (a mesma enquanto o dia e o tratador forem os mesmos) e a memoizacao funcione.
+ */
+const CelulaDoMes = memo(
+  function CelulaDoMes({
+    ms,
+    dia,
+    selecionado,
+    hoje,
+    foraDoMes,
+    fimDeSemana,
+    cores,
+    onSelecionar,
+    onSegurar,
+  }: {
+    ms: number;
+    dia: number;
+    selecionado: boolean;
+    hoje: boolean;
+    foraDoMes: boolean;
+    fimDeSemana: boolean;
+    cores?: readonly string[];
+    onSelecionar: (ms: number) => void;
+    onSegurar?: (ms: number) => void;
+  }) {
+    const tocar = useCallback(() => onSelecionar(ms), [onSelecionar, ms]);
+    const segurar = useCallback(() => onSegurar?.(ms), [onSegurar, ms]);
+    return (
+      <DiaCelula
+        dia={dia}
+        selecionado={selecionado}
+        hoje={hoje}
+        foraDoMes={foraDoMes}
+        fimDeSemana={fimDeSemana}
+        cores={cores}
+        onPress={tocar}
+        onSegurar={onSegurar ? segurar : undefined}
+      />
+    );
+  },
+  (a, b) =>
+    a.ms === b.ms &&
+    a.dia === b.dia &&
+    a.selecionado === b.selecionado &&
+    a.hoje === b.hoje &&
+    a.foraDoMes === b.foraDoMes &&
+    a.fimDeSemana === b.fimDeSemana &&
+    a.onSelecionar === b.onSelecionar &&
+    a.onSegurar === b.onSegurar &&
+    mesmasCoresCelula(a.cores, b.cores),
+);
+
 /** Um mes: as semanas, uma sobre a outra. Existe como parte propria para o calendario poder mostrar tres lado a lado. */
-function GradeDoMes({
+const GradeDoMes = memo(function GradeDoMes({
   mesMs,
   selecionadoMs,
   marcadores,
@@ -135,28 +220,32 @@ function GradeDoMes({
   onSelecionar: (ms: number) => void;
   onSegurar?: (ms: number) => void;
 }) {
+  // A grade so muda com o mes — ou com a virada do dia, que muda qual celula e "hoje".
+  const hojeChave = chaveDia(Date.now());
+  const semanas = useMemo(() => gradeDoMes(mesMs), [mesMs, hojeChave]);
   return (
-    <View style={{ gap: 2 }}>
-      {gradeDoMes(mesMs).map((semana, i) => (
+    <View style={{ gap: ESPACO_ENTRE_SEMANAS }}>
+      {semanas.map((semana, i) => (
         <View key={i} style={{ flexDirection: "row" }}>
           {semana.map((celula) => (
-            <DiaCelula
+            <CelulaDoMes
               key={celula.chave}
+              ms={celula.ms}
               dia={celula.dia}
               selecionado={selecionadoMs !== null && mesmoDia(celula.ms, selecionadoMs)}
               hoje={celula.hoje}
               foraDoMes={celula.foraDoMes}
               fimDeSemana={celula.fimDeSemana}
               cores={marcadores?.[celula.chave]?.cores}
-              onPress={() => onSelecionar(celula.ms)}
-              onSegurar={onSegurar ? () => onSegurar(celula.ms) : undefined}
+              onSelecionar={onSelecionar}
+              onSegurar={onSegurar}
             />
           ))}
         </View>
       ))}
     </View>
   );
-}
+});
 
 /**
  * Calendario mensal.
@@ -167,8 +256,16 @@ function GradeDoMes({
  *
  * Trocar de mes e um gesto fisico, como passar fotos: o mes ACOMPANHA o dedo, o
  * vizinho entra de lado, e ao soltar ele termina de deslizar (ou volta, se o
- * arrasto foi curto). As setas deslizam do mesmo jeito. Os meses vizinhos so
- * existem enquanto ha movimento: parado, a tela tem uma grade so.
+ * arrasto foi curto). As setas deslizam do mesmo jeito.
+ *
+ * O que faz a troca parecer suave (e nao um "pisca"):
+ *  - a ALTURA acompanha o dedo: um mes de 6 semanas e mais alto que um de 5, e antes
+ *    tudo que fica embaixo dava um salto de 56 px de uma vez;
+ *  - o mes que entra ja traz o dia que sera selecionado nele (`selecionadoAoTrocar`),
+ *    entao o destaque chega junto, em vez de aparecer so depois de assentar;
+ *  - os meses vizinhos sao montados DEPOIS de a tela ficar parada um instante, fora da
+ *    vista e escondidos da acessibilidade, e nao no instante em que o dedo comeca a
+ *    andar (montar 84 celulas de uma vez travava justo ali).
  */
 export function CalendarioMes({
   referenciaMs,
@@ -177,6 +274,8 @@ export function CalendarioMes({
   onTrocarMes,
   onSegurar,
   marcadores,
+  selecionadoAoTrocar,
+  emTroca,
 }: {
   referenciaMs: number;
   selecionadoMs: number | null;
@@ -185,15 +284,28 @@ export function CalendarioMes({
   /** Segurar o dedo num dia (a agenda oferece incluir um plantao ali). */
   onSegurar?: (ms: number) => void;
   marcadores?: Record<string, MarcadorDia>;
+  /** Que dia fica selecionado quando esse mes abrir; o mes que entra deslizando o mostra de antemao. */
+  selecionadoAoTrocar?: (mesMs: number) => number | null;
+  /**
+   * Avisa que uma troca de mes vai terminar de deslizar (`true`) ou foi desfeita
+   * (`false`) — para quem mostra outras coisas por baixo suavizar a mudanca delas.
+   */
+  emTroca?: (ativa: boolean) => void;
 }) {
   const t = useTheme();
-  const usaNativo = Platform.OS !== "web";
 
   const [largura, setLargura] = useState(0);
   const [movendo, setMovendo] = useState(false);
+  /**
+   * Os meses vizinhos que ja estao montados, parados fora da vista: o arrasto nao precisa montar
+   * nada. Ao trocar de mes, o vizinho de antes vira o atual ou o vizinho do lado (continua
+   * montado, sem custo); so o novo vizinho do outro lado e montado depois, com a tela parada.
+   */
+  const [prontos, setProntos] = useState<readonly number[]>([]);
   /** O mes que o titulo mostra: acompanha o arrasto e vira o novo assim que passa da metade. */
   const [tituloMs, setTituloMs] = useState(referenciaMs);
-  const [alturas, setAlturas] = useState<Record<number, number>>({});
+  /** Altura de UMA semana, medida na tela (a altura de qualquer mes sai dela). */
+  const [linha, setLinha] = useState<number | null>(null);
 
   const x = useRef(new Animated.Value(0)).current;
   const ocupado = useRef(false);
@@ -206,22 +318,36 @@ export function CalendarioMes({
   const jaAndou = useRef(0);
   const pendente = useRef<1 | -1 | null>(null);
   // O que os tratadores de gesto (criados uma vez so) precisam ler sempre atualizado.
-  const vivo = useRef({ referenciaMs, onTrocarMes, largura });
-  vivo.current = { referenciaMs, onTrocarMes, largura };
+  const vivo = useRef({ referenciaMs, onTrocarMes, largura, onSelecionar, onSegurar, emTroca });
+  vivo.current = { referenciaMs, onTrocarMes, largura, onSelecionar, onSegurar, emTroca };
 
   const mesDe = (delta: number) => somaMeses(inicioDoMes(vivo.current.referenciaMs), delta);
 
-  /** Termina a troca: desliza ate o vizinho e entao avisa quem controla o mes. */
+  // Identidade estavel: as celulas memoizadas nao se redesenham a cada render da tela.
+  const selecionar = useCallback((ms: number) => vivo.current.onSelecionar(ms), []);
+  const temSegurar = Boolean(onSegurar);
+  const segurar = useMemo(
+    () => (temSegurar ? (ms: number) => vivo.current.onSegurar?.(ms) : undefined),
+    [temSegurar],
+  );
+
+  /**
+   * Termina a troca: desliza ate o vizinho e entao avisa quem controla o mes.
+   *
+   * Nada aqui usa o driver nativo: o deslocamento E a altura saem do mesmo valor
+   * (`x`), e a altura e propriedade de layout, que o driver nativo nao anima.
+   */
   const termina = (direcao: 1 | -1) => {
     const W = vivo.current.largura;
     const alvo = mesDe(direcao);
     setTituloMs(alvo);
+    vivo.current.emTroca?.(true);
     const restante = Math.abs(-direcao * W - posicao.current);
     Animated.timing(x, {
       toValue: -direcao * W,
       duration: Math.round(110 + 150 * (restante / Math.max(W, 1))),
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: usaNativo,
+      useNativeDriver: false,
     }).start(() => {
       vivo.current.onTrocarMes(alvo);
       // Se quem controla nao trocou o mes, nao deixamos o calendario preso no vizinho.
@@ -232,11 +358,12 @@ export function CalendarioMes({
   };
 
   const volta = () => {
+    vivo.current.emTroca?.(false);
     Animated.timing(x, {
       toValue: 0,
       duration: 170,
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: usaNativo,
+      useNativeDriver: false,
     }).start(() => {
       posicao.current = 0;
       ocupado.current = false;
@@ -247,14 +374,35 @@ export function CalendarioMes({
 
   // Quando o mes de fato troca, a pagina vizinha ja esta na tela: so falta tornar
   // o vizinho o "atual" e zerar o deslocamento — tudo no mesmo quadro, sem piscar.
+  // Fica montado so quem continua vizinho; o novo vizinho do outro lado vem depois.
   useLayoutEffect(() => {
     x.setValue(0);
     posicao.current = 0;
     ocupado.current = false;
     pendente.current = null;
     setMovendo(false);
+    const antes = somaMeses(inicioDoMes(referenciaMs), -1);
+    const depois = somaMeses(inicioDoMes(referenciaMs), 1);
+    setProntos((p) => {
+      const ficam = p.filter((m) => m === antes || m === depois);
+      return ficam.length === p.length ? p : ficam;
+    });
     setTituloMs(referenciaMs);
   }, [referenciaMs, x]);
+
+  // Parado um instante: monta o vizinho que falta, fora da vista. E uma transicao (React pode
+  // pausar no meio se um dedo tocar), e o primeiro arrasto ja encontra tudo pronto.
+  useEffect(() => {
+    if (movendo || largura === 0 || linha === null) return;
+    const base = inicioDoMes(referenciaMs);
+    const faltam = [somaMeses(base, -1), somaMeses(base, 1)].filter((m) => !prontos.includes(m));
+    if (faltam.length === 0) return;
+    const id = setTimeout(
+      () => startTransition(() => setProntos((p) => [...p, ...faltam.filter((m) => !p.includes(m))])),
+      ESPERA_PARA_PREPARAR_MS,
+    );
+    return () => clearTimeout(id);
+  }, [movendo, prontos, largura, linha, referenciaMs]);
 
   // As setas: primeiro montam o vizinho, depois deslizam (senao nao haveria o que mostrar).
   useLayoutEffect(() => {
@@ -314,8 +462,21 @@ export function CalendarioMes({
 
   const mesAtual = inicioDoMes(Date.now()) === inicioDoMes(tituloMs);
   const base = inicioDoMes(referenciaMs);
-  const paginas = movendo ? [-1, 0, 1] : [0];
-  const alturaMax = Math.max(0, ...paginas.map((d) => alturas[somaMeses(base, d)] ?? 0));
+  const tres = movendo || prontos.length > 0;
+  // Durante o arrasto os tres meses existem; parado, so os que ja foram preparados.
+  const paginas = [-1, 0, 1].filter((d) => d === 0 || movendo || prontos.includes(somaMeses(base, d)));
+
+  // A altura do calendario vai de um mes ao outro junto com o dedo (x = -largura: o seguinte
+  // ocupa a tela; x = +largura: o anterior). Sem isso o conteudo de baixo pula ate 56 px.
+  const altura = useMemo(() => {
+    if (!tres || linha === null || largura === 0) return null;
+    const h = (d: number) => alturaDoMes(linhasDoMes(somaMeses(base, d)), linha, ESPACO_ENTRE_SEMANAS);
+    return x.interpolate({
+      inputRange: [-largura, 0, largura],
+      outputRange: [h(1), h(0), h(-1)],
+      extrapolate: "clamp",
+    });
+  }, [tres, linha, largura, base, x]);
 
   const seta = (direcao: -1 | 1, nome: "chevron-left" | "chevron-right", rotulo: string) => (
     <Pressable
@@ -345,11 +506,11 @@ export function CalendarioMes({
           style={{ alignItems: "center", gap: 2 }}
         >
           <Txt variant="title">{formatMesAno(tituloMs)}</Txt>
-          {!mesAtual && (
-            <Txt variant="caption" tom="primary">
-              voltar para hoje
-            </Txt>
-          )}
+          {/* A linha existe sempre (um espaco, no mes de hoje): se ela aparecesse e sumisse, tudo
+              que esta embaixo daria um tranco de 6 px a cada vez que o titulo passa pelo mes de hoje. */}
+          <Txt variant="caption" tom="primary">
+            {mesAtual ? "\u00A0" : "voltar para hoje"}
+          </Txt>
         </Pressable>
         {seta(1, "chevron-right", "Próximo mês")}
       </View>
@@ -364,9 +525,10 @@ export function CalendarioMes({
         ))}
       </View>
 
-      <View
+      <Animated.View
         onLayout={(e) => setLargura(e.nativeEvent.layout.width)}
-        style={[{ overflow: "hidden" }, movendo && alturaMax > 0 ? { height: alturaMax } : null, SO_ROLA_NA_VERTICAL]}
+        aria-busy={movendo}
+        style={[{ overflow: "hidden" }, altura ? { height: altura } : null, SO_ROLA_NA_VERTICAL]}
         {...pan.panHandlers}
       >
         <Animated.View
@@ -374,11 +536,13 @@ export function CalendarioMes({
             flexDirection: "row",
             alignItems: "flex-start",
             // Com os tres meses lado a lado, o do meio fica no lugar e os outros esperam fora da vista.
-            width: movendo ? largura * 3 : undefined,
-            marginLeft: movendo ? -largura : 0,
+            width: tres ? largura * 3 : undefined,
+            marginLeft: tres ? -largura : 0,
             transform: [{ translateX: x }],
           }}
         >
+          {/* O lugar do mes anterior fica reservado mesmo sem ele montado: e ele que empurra o atual para o meio. */}
+          {tres && !paginas.includes(-1) && <View key="espaco" style={{ width: largura }} />}
           {paginas.map((d) => {
             const mesMs = somaMeses(base, d);
             return (
@@ -387,24 +551,25 @@ export function CalendarioMes({
                 role="group"
                 aria-label={formatMesAno(mesMs)}
                 aria-hidden={d !== 0}
-                onLayout={(e) => {
-                  const h = e.nativeEvent.layout.height;
-                  setAlturas((a) => (a[mesMs] === h ? a : { ...a, [mesMs]: h }));
-                }}
-                style={{ width: movendo ? largura : "100%" }}
+                onLayout={
+                  d === 0
+                    ? (e) => setLinha(alturaDaLinha(e.nativeEvent.layout.height, linhasDoMes(mesMs), ESPACO_ENTRE_SEMANAS))
+                    : undefined
+                }
+                style={{ width: tres ? largura : "100%" }}
               >
                 <GradeDoMes
                   mesMs={mesMs}
-                  selecionadoMs={selecionadoMs}
+                  selecionadoMs={d === 0 || !selecionadoAoTrocar ? selecionadoMs : selecionadoAoTrocar(mesMs)}
                   marcadores={marcadores}
-                  onSelecionar={onSelecionar}
-                  onSegurar={onSegurar}
+                  onSelecionar={selecionar}
+                  onSegurar={segurar}
                 />
               </View>
             );
           })}
         </Animated.View>
-      </View>
+      </Animated.View>
     </View>
   );
 }
