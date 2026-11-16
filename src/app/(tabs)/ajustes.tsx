@@ -83,7 +83,9 @@ export default function Ajustes() {
           app não envia nada para lugar nenhum. A única exceção é o que você mesmo manda para o
           calendário: se o calendário escolhido for de uma conta Google, é o Google quem o
           sincroniza. O mesmo vale para o backup e a planilha: eles só saem do celular quando
-          você os envia.
+          você os envia. E, se o backup do próprio Android estiver ligado no seu celular, o
+          sistema pode guardar uma cópia dos dados do app na sua conta Google — isso é um
+          recurso do Android, não do app, e dá para desligar nas configurações do celular.
         </Txt>
       </Card>
     </Screen>

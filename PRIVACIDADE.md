@@ -12,6 +12,9 @@ com as suas informações.
   num banco de dados dentro do próprio aparelho.
 - **O app não tem acesso à internet.** Ele não envia nenhuma informação a mim, ao
   desenvolvedor, nem a ninguém, e não usa serviços de análise, anúncios ou rastreio.
+  (As únicas formas de os dados saírem do aparelho são as que **você** controla: o
+  calendário que você conectar, os arquivos que você enviar e o backup do próprio
+  Android, descritos abaixo.)
 - **Não há conta, cadastro nem login.**
 
 ## O que o app guarda (e só no aparelho)
@@ -46,6 +49,14 @@ arquivos **só saem do aparelho se você os enviar**, pelo menu de compartilhame
 Android, para onde decidir (e-mail, Drive, etc.). O app não os envia sozinho. Quem
 receber o arquivo vê o conteúdo dele, então guarde-o com o cuidado que você teria com
 seus extratos.
+
+## Backup do próprio Android
+
+Se o **backup do Android** estiver ligado no seu celular (nas configurações do
+sistema, ligado à sua conta Google), o sistema pode guardar uma cópia dos dados deste
+app na sua conta e devolvê-la ao trocar de aparelho. Isso é um recurso do Android,
+controlado por você nas configurações do celular — o app não envia esses dados e não
+tem acesso a eles. Para desligar: configurações do Android → Contas/Google → Backup.
 
 ## Compartilhamento com terceiros
 
