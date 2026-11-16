@@ -11,7 +11,7 @@ import { useTheme } from "@/theme";
 import { Icone, Txt } from "./ui";
 
 /** O movimento e claramente horizontal (e nao um rolar de tela torto)? */
-function horizontal(dx: number, dy: number, minimo: number): boolean {
+export function horizontal(dx: number, dy: number, minimo: number): boolean {
   return Math.abs(dx) > minimo && Math.abs(dx) > Math.abs(dy) * 1.6;
 }
 

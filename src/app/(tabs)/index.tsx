@@ -23,6 +23,7 @@ import {
   gradeDoMes,
   inicioDoDia,
   inicioDoMes,
+  somaMeses,
 } from "@/lib/datetime";
 import { formatBRL } from "@/lib/money";
 import {
@@ -47,9 +48,12 @@ export default function Agenda() {
 
   // A grade mostra dias dos meses vizinhos; buscamos o intervalo todo para os
   // pontinhos desses dias tambem aparecerem.
+  // O calendario mostra tambem o mes anterior e o seguinte enquanto voce arrasta: os
+  // pontinhos deles ja precisam estar la, senao apareceriam so depois de soltar.
   const [de, ate] = useMemo(() => {
-    const grade = gradeDoMes(referencia).flat();
-    return [grade[0].ms, fimDoDia(grade[grade.length - 1].ms)] as const;
+    const antes = gradeDoMes(somaMeses(referencia, -1)).flat();
+    const depois = gradeDoMes(somaMeses(referencia, 1)).flat();
+    return [antes[0].ms, fimDoDia(depois[depois.length - 1].ms)] as const;
   }, [referencia]);
 
   const estadoBanco = useEstadoBanco();

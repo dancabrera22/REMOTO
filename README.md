@@ -169,6 +169,7 @@ npm run test:plantoes                # noutro: plantões — a cor chegando ao p
 npm run test:escalas                 # noutro: escalas, pagamento e gestos (com toques de dedo de verdade)
 npm run test:atalhos                 # noutro: botão Local, o «+» do formulário, segurar o dia
 npm run test:financeiro              # noutro: atrasados, baixa parcial e em lote, desfazer, navegar entre meses
+npm run test:deslizar                # noutro: o calendário acompanha o dedo (medido com o dedo ainda apoiado)
 ```
 
 `test:calendario` precisa do servidor iniciado com um calendário falso (o navegador não
