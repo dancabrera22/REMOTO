@@ -18,10 +18,24 @@
 #    tempo e o tamanho do arquivo pela metade. Para x86 (emulador), use
 #    ARQS=arm64-v8a,x86_64.
 #
-# Assinatura: o APK sai assinado com a chave de DEBUG do modelo do Expo. Serve
-# para instalar e testar — e as versoes seguintes, assinadas com a mesma chave,
-# atualizam por cima mantendo seus dados. Para publicar na Play Store e preciso
-# uma chave de upload propria (Etapa 7).
+# Assinatura:
+#  * sem nada configurado, o APK sai assinado com a chave de DEBUG do modelo do
+#    Expo. Serve para instalar e testar, e as versoes seguintes, assinadas com a
+#    mesma chave, atualizam por cima mantendo seus dados;
+#  * para publicar, use a SUA chave (crie uma com scripts/cria-chave.sh) e aponte
+#    para ela por variaveis de ambiente — nada de senha em arquivo do projeto:
+#
+#      MEU_PLANTAO_KEYSTORE=~/meu-plantao-chave/meu-plantao.jks \
+#      MEU_PLANTAO_KEY_ALIAS=meu-plantao \
+#      MEU_PLANTAO_KEYSTORE_PASSWORD='...' \
+#      FORMATO=aab scripts/build-apk.sh
+#
+#    (MEU_PLANTAO_KEY_PASSWORD so precisa existir se a senha da chave for
+#    diferente da senha do arquivo.) Leia o PUBLICAR.md antes: trocar a chave de
+#    teste pela sua exige desinstalar o app, entao faca um backup antes.
+#
+# FORMATO: apk (padrao), aab (pacote para a Play Store) ou ambos. O aab exige a
+# sua chave: a Play Store recusa pacote assinado com a chave de debug.
 #
 set -euo pipefail
 
@@ -31,6 +45,7 @@ export ANDROID_HOME="${ANDROID_HOME:-$CACHE/android-sdk}"
 export ANDROID_SDK_ROOT="$ANDROID_HOME"
 ARQS="${ARQS:-arm64-v8a}"
 TENTATIVAS="${TENTATIVAS:-8}"
+FORMATO="${FORMATO:-apk}"
 
 log() { printf '\n\033[1m[apk]\033[0m %s\n' "$*"; }
 falha() { printf '\n\033[31m[apk] %s\033[0m\n' "$*" >&2; exit 1; }
@@ -38,6 +53,28 @@ falha() { printf '\n\033[31m[apk] %s\033[0m\n' "$*" >&2; exit 1; }
 command -v node >/dev/null || falha "Node nao encontrado."
 command -v java >/dev/null || falha "JDK nao encontrado (instale o 17 ou o 21)."
 command -v git  >/dev/null || falha "git nao encontrado."
+
+case "$FORMATO" in apk|aab|ambos) ;; *) falha "FORMATO deve ser apk, aab ou ambos (recebi: $FORMATO).";; esac
+
+# Chave propria (opcional). Tudo e conferido ANTES da compilacao longa: errar uma
+# senha so depois de 15 minutos de build e o tipo de coisa que da raiva.
+ASSINA_COM_CHAVE_PROPRIA=0
+if [ -n "${MEU_PLANTAO_KEYSTORE:-}" ]; then
+  ASSINA_COM_CHAVE_PROPRIA=1
+  [ -f "$MEU_PLANTAO_KEYSTORE" ] || falha "Nao achei o arquivo de chave: $MEU_PLANTAO_KEYSTORE"
+  MEU_PLANTAO_KEYSTORE="$(cd "$(dirname "$MEU_PLANTAO_KEYSTORE")" && pwd)/$(basename "$MEU_PLANTAO_KEYSTORE")"
+  [ -n "${MEU_PLANTAO_KEY_ALIAS:-}" ] || falha "Falta MEU_PLANTAO_KEY_ALIAS (o apelido da chave dentro do arquivo)."
+  [ -n "${MEU_PLANTAO_KEYSTORE_PASSWORD:-}" ] || falha "Falta MEU_PLANTAO_KEYSTORE_PASSWORD (a senha do arquivo de chave)."
+  export MEU_PLANTAO_KEYSTORE MEU_PLANTAO_KEY_ALIAS MEU_PLANTAO_KEYSTORE_PASSWORD
+  export MEU_PLANTAO_KEY_PASSWORD="${MEU_PLANTAO_KEY_PASSWORD:-$MEU_PLANTAO_KEYSTORE_PASSWORD}"
+  if command -v keytool >/dev/null; then
+    MEU_PLANTAO_SENHA="$MEU_PLANTAO_KEYSTORE_PASSWORD" keytool -list -keystore "$MEU_PLANTAO_KEYSTORE" \
+      -storepass:env MEU_PLANTAO_SENHA -alias "$MEU_PLANTAO_KEY_ALIAS" >/dev/null 2>&1 \
+      || falha "Nao consegui abrir a chave (arquivo, senha ou apelido incorretos): $MEU_PLANTAO_KEYSTORE"
+  fi
+elif [ "$FORMATO" != "apk" ]; then
+  falha "FORMATO=$FORMATO exige a sua chave (MEU_PLANTAO_KEYSTORE...): a Play Store recusa pacote assinado com a chave de debug. Veja o PUBLICAR.md."
+fi
 
 if [ -n "$(git -C "$RAIZ" status --porcelain -- src app.json package.json 2>/dev/null)" ]; then
   echo "Aviso: ha alteracoes nao commitadas. O APK sai do ULTIMO COMMIT, sem elas." >&2
@@ -63,6 +100,37 @@ j.expo.android.versionCode=Number(process.argv[1]);fs.writeFileSync("app.json",J
 
 log "Gerando o projeto Android nativo (versionCode $CODIGO)"
 npx expo prebuild --platform android --no-install >/dev/null
+
+# Assinatura com a chave propria: o modelo do Expo assina o release com a chave de
+# debug ("Caution! In production, you need to generate your own keystore").
+# Troca isso por uma configuracao que le o arquivo e as senhas do AMBIENTE (nada
+# fica gravado em disco) e confere que a troca de fato aconteceu.
+if [ "$ASSINA_COM_CHAVE_PROPRIA" = 1 ]; then
+  node -e '
+    const fs = require("fs");
+    const f = "android/app/build.gradle";
+    let g = fs.readFileSync(f, "utf8");
+    const config = `signingConfigs {
+        release {
+            storeFile file(System.getenv("MEU_PLANTAO_KEYSTORE"))
+            storePassword System.getenv("MEU_PLANTAO_KEYSTORE_PASSWORD")
+            keyAlias System.getenv("MEU_PLANTAO_KEY_ALIAS")
+            keyPassword System.getenv("MEU_PLANTAO_KEY_PASSWORD")
+        }`;
+    if (!g.includes("signingConfigs {")) throw new Error("bloco signingConfigs nao encontrado");
+    g = g.replace("signingConfigs {", config);
+    const i = g.indexOf("buildTypes {");
+    const j = g.indexOf("release {", i);
+    const k = g.indexOf("signingConfig signingConfigs.debug", j);
+    if (i < 0 || j < 0 || k < 0) throw new Error("buildTypes.release nao encontrado");
+    g = g.slice(0, k) + "signingConfig signingConfigs.release" + g.slice(k + "signingConfig signingConfigs.debug".length);
+    fs.writeFileSync(f, g);
+  ' || falha "Nao consegui configurar a assinatura no projeto Android (o modelo do Expo mudou?)."
+  grep -q "signingConfig signingConfigs.release" android/app/build.gradle || falha "A troca da assinatura nao pegou."
+  log "Assinatura: chave propria ($(basename "$MEU_PLANTAO_KEYSTORE"), apelido $MEU_PLANTAO_KEY_ALIAS)"
+else
+  log "Assinatura: chave de teste (debug) — serve para instalar, nao para publicar"
+fi
 
 # ---------------------------------------------------------------------------
 # Android SDK: as versoes exigidas vem do proprio React Native instalado, entao
@@ -106,9 +174,14 @@ sed -i 's/^org.gradle.parallel=.*/org.gradle.parallel=false/' android/gradle.pro
 # ---------------------------------------------------------------------------
 cd android
 LOG="$TRAB/gradle.log"
+case "$FORMATO" in
+  apk) TAREFAS="assembleRelease" ;;
+  aab) TAREFAS="bundleRelease" ;;
+  ambos) TAREFAS="assembleRelease bundleRelease" ;;
+esac
 for i in $(seq 1 "$TENTATIVAS"); do
   log "Compilando (tentativa $i de $TENTATIVAS, arquiteturas: $ARQS)"
-  if ./gradlew assembleRelease -PreactNativeArchitectures="$ARQS" --no-daemon --console=plain >"$LOG" 2>&1; then
+  if ./gradlew $TAREFAS -PreactNativeArchitectures="$ARQS" --no-daemon --console=plain >"$LOG" 2>&1; then
     break
   fi
   if grep -qE "status code 429|Too Many Requests|Could not GET|Read timed out|Connection reset|Premature end" "$LOG"; then
@@ -121,15 +194,35 @@ for i in $(seq 1 "$TENTATIVAS"); do
   [ "$i" -eq "$TENTATIVAS" ] && { tail -40 "$LOG" >&2; falha "Esgotei as $TENTATIVAS tentativas."; }
 done
 
-APK="$(find app/build/outputs/apk/release -name '*.apk' | head -1)"
-[ -f "$APK" ] || falha "A compilacao terminou, mas nao achei o APK."
-
 cd "$RAIZ"
 VERSAO="$(node -p "require('./package.json').version")"
 mkdir -p dist
-DESTINO="dist/meu-plantao-$VERSAO.apk"
-cp "$TRAB/android/$APK" "$DESTINO"
-( cd dist && sha256sum "meu-plantao-$VERSAO.apk" > "meu-plantao-$VERSAO.apk.sha256" )
 
-log "Pronto: $DESTINO ($(du -h "$DESTINO" | cut -f1)) — commit $COMMIT"
-cat "dist/meu-plantao-$VERSAO.apk.sha256"
+# Mostra com que chave o resultado foi assinado — confira se e a que voce espera.
+mostra_assinatura() {
+  local arq="$1" apksigner="$ANDROID_HOME/build-tools/$BUILDTOOLS/apksigner"
+  if [[ "$arq" == *.apk ]] && [ -x "$apksigner" ]; then
+    "$apksigner" verify --print-certs "$arq" 2>&1 | sed -n 's/^Signer #1 certificate SHA-256 digest: /  assinatura (SHA-256 da chave): /p'
+  elif command -v keytool >/dev/null; then
+    keytool -printcert -jarfile "$arq" 2>/dev/null | sed -n 's/^[[:space:]]*SHA256: /  assinatura (SHA-256 da chave): /p' | head -1
+  fi
+}
+
+entrega() {
+  local origem="$1" ext="$2" destino="dist/meu-plantao-$VERSAO.$2"
+  [ -f "$origem" ] || falha "A compilacao terminou, mas nao achei o arquivo .$ext."
+  cp "$origem" "$destino"
+  ( cd dist && sha256sum "meu-plantao-$VERSAO.$ext" > "meu-plantao-$VERSAO.$ext.sha256" )
+  log "Pronto: $destino ($(du -h "$destino" | cut -f1)) — commit $COMMIT"
+  cat "$destino.sha256"
+  mostra_assinatura "$destino"
+}
+
+if [ "$FORMATO" != "aab" ]; then
+  APK="$(find "$TRAB/android/app/build/outputs/apk/release" -name '*.apk' | head -1)"
+  entrega "$APK" apk
+fi
+if [ "$FORMATO" != "apk" ]; then
+  AAB="$(find "$TRAB/android/app/build/outputs/bundle/release" -name '*.aab' | head -1)"
+  entrega "$AAB" aab
+fi
