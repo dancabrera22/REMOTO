@@ -202,7 +202,10 @@ mkdir -p dist
 mostra_assinatura() {
   local arq="$1" apksigner="$ANDROID_HOME/build-tools/$BUILDTOOLS/apksigner"
   if [[ "$arq" == *.apk ]] && [ -x "$apksigner" ]; then
-    "$apksigner" verify --print-certs "$arq" 2>&1 | sed -n 's/^Signer #1 certificate SHA-256 digest: /  assinatura (SHA-256 da chave): /p'
+    # O apksigner imprime o resumo em minusculas e sem ":"; reformata como o keytool (AA:BB:...), para comparar a olho.
+    local resumo
+    resumo="$("$apksigner" verify --print-certs "$arq" 2>&1 | sed -n 's/^.*certificate SHA-256 digest: //p' | head -1 | tr 'a-f' 'A-F' | sed 's/../&:/g; s/:$//')"
+    if [ -n "$resumo" ]; then echo "  assinatura (SHA-256 da chave): $resumo"; fi
   elif command -v keytool >/dev/null; then
     keytool -printcert -jarfile "$arq" 2>/dev/null | sed -n 's/^[[:space:]]*SHA256: /  assinatura (SHA-256 da chave): /p' | head -1
   fi
