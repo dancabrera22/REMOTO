@@ -1,6 +1,9 @@
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { Tabs } from "expo-router/tabs";
 import { StyleSheet, type ColorValue } from "react-native";
+import { listaPlantoesFinanceiro } from "@/db/financeiro";
+import { useConsulta } from "@/db/provider";
+import { itensFinanceiros, resumoDosAtrasos } from "@/lib/financeiro";
 import { useTheme } from "@/theme";
 
 type NomeIcone = React.ComponentProps<typeof MaterialCommunityIcons>["name"];
@@ -14,6 +17,11 @@ type NomeIcone = React.ComponentProps<typeof MaterialCommunityIcons>["name"];
  */
 export default function TabsLayout() {
   const t = useTheme();
+
+  // O unico aviso de atraso que existe fora da aba: um numero no icone do Financeiro.
+  // Nao e notificacao (o app nunca fala sozinho); quem quiser lembrete tem o calendario do celular.
+  const financeiro = useConsulta((db) => listaPlantoesFinanceiro(db), []);
+  const atrasados = financeiro.status === "pronto" ? resumoDosAtrasos(itensFinanceiros(financeiro.dados)).plantoes : 0;
 
   const icone =
     (nome: NomeIcone, nomeAtivo?: NomeIcone) =>
@@ -60,6 +68,9 @@ export default function TabsLayout() {
         options={{
           title: "Financeiro",
           tabBarIcon: icone("cash-multiple", "cash-multiple"),
+          tabBarBadge: atrasados > 0 ? (atrasados > 99 ? "99+" : atrasados) : undefined,
+          tabBarBadgeStyle: { backgroundColor: t.colors.danger, color: t.colors.primaryOn, fontSize: 10, fontWeight: "700" },
+          tabBarAccessibilityLabel: atrasados > 0 ? `Financeiro, ${atrasados} em atraso` : "Financeiro",
         }}
       />
       <Tabs.Screen
