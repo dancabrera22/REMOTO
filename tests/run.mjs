@@ -9,6 +9,8 @@
  * `tests/telas.mjs`, que exige o servidor web do Expo no ar.
  */
 import { report } from "./helpers.mjs";
+import { testes as calendario } from "./calendario.mjs";
+import { testes as calendarioDb } from "./calendario-db.mjs";
 import { testes as cores } from "./cores.mjs";
 import { testes as esquema } from "./esquema.mjs";
 import { testes as feriados } from "./feriados.mjs";
@@ -57,5 +59,9 @@ await seriesDb();
 
 console.log("\n── financeiro no banco (consulta, baixa em lote, falhas)");
 await financeiroDb();
+
+console.log("\n── calendário do celular (evento e sincronização)");
+calendario();
+await calendarioDb();
 
 process.exit(report() ? 0 : 1);

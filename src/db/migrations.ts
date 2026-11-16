@@ -170,6 +170,32 @@ export const migracoes: Migracao[] = [
         WHERE serie_id IS NOT NULL;
     `,
   },
+  {
+    versao: 4,
+    descricao: "configuracoes e a ligacao entre plantoes e eventos do calendario do celular",
+    sql: `
+      -- Chave/valor para o que e do app e nao de um plantao (calendario escolhido,
+      -- lembrete...). Valor em texto; quem le sabe o formato (ver lib/calendario.ts).
+      CREATE TABLE config (
+        chave TEXT PRIMARY KEY,
+        valor TEXT NOT NULL
+      );
+
+      -- Que evento do calendario do celular espelha cada plantao.
+      --   assinatura: o que foi enviado ao calendario; se o plantao muda, a
+      --               assinatura muda, e so entao o evento e atualizado.
+      -- Sem REFERENCES de proposito: apagar um plantao nao pode ser bloqueado nem
+      -- apagar esta linha sozinho — a sincronizacao precisa ver a linha sobrando
+      -- para remover o evento do calendario.
+      CREATE TABLE eventos_calendario (
+        plantao_id      INTEGER PRIMARY KEY,
+        calendario_id   TEXT    NOT NULL,
+        evento_id       TEXT    NOT NULL,
+        assinatura      TEXT    NOT NULL,
+        sincronizado_em INTEGER NOT NULL
+      );
+    `,
+  },
 ];
 
 export const versaoEsquema = migracoes[migracoes.length - 1]!.versao;
