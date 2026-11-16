@@ -7,15 +7,14 @@ Tudo fica no próprio aparelho, num banco SQLite. Sem servidor, sem conta para
 criar, sem mensalidade — nem valores, nem locais, nem a sua escala saem do
 celular.
 
-> **Etapa 6 de 7 — Calendário.** Em **Ajustes**, conecte o calendário do celular: cada
-> plantão vira um evento (título, endereço do local, horário — o noturno termina no
-> dia seguinte), com o **lembrete** que você escolher (30 min, 1 h, 2 h ou 1 dia
-> antes). Se o calendário for o da sua **conta Google**, os plantões aparecem também
-> no Google Calendar. Mudou, cancelou ou excluiu um plantão? O evento acompanha
-> sozinho, poucos segundos depois. O valor **não** vai para o evento, a menos que
-> você peça. Antes: a aba **Financeiro** (previsão, atrasados, baixa em lote,
-> feriados) e as escalas que se repetem. O estado de cada etapa está dentro do app,
-> em **Ajustes**.
+> **Versão 1.0 — as 7 etapas estão prontas.** Agenda mensal, locais, plantões avulsos
+> e escalas que se repetem, **Financeiro** (previsão, atrasados, baixa em lote, feriados),
+> plantões como eventos no **calendário** do celular (com lembrete) e, na última etapa,
+> **seus dados**: *Ajustes → Seus dados* gera um **backup** em arquivo (e restaura,
+> conferindo tudo antes de tocar no que você tem), exporta uma **planilha** que abre
+> direto no Excel em português, e você escolhe o tema **claro, escuro ou do celular**.
+> O app só pede acesso ao **calendário** — nada de internet. Para publicar na Play
+> Store, veja o [PUBLICAR.md](PUBLICAR.md).
 
 ---
 
@@ -32,6 +31,10 @@ celular.
 As versões novas instalam **por cima** da anterior e **mantêm seus dados**,
 porque todas são assinadas com a mesma chave. O banco se atualiza sozinho.
 
+> Esses APKs usam uma **chave de teste**. Ao passar para a **sua** chave (para publicar),
+> o Android exige desinstalar antes — **faça o backup** em *Ajustes → Seus dados* e
+> restaure depois. Está tudo explicado no [PUBLICAR.md](PUBLICAR.md).
+
 Para gerar o APK a partir do código (precisa de Node, JDK e ~6 GB livres):
 
 ```bash
@@ -41,6 +44,14 @@ scripts/build-apk.sh        # sai em dist/meu-plantao-<versao>.apk
 O script compila a partir do **último commit**, baixa o Android SDK sozinho na
 primeira vez e repete automaticamente quando o Maven Central responde 429. Só
 gera arm64 (celulares atuais); para emulador x86: `ARQS=arm64-v8a,x86_64`.
+
+Para assinar com a **sua** chave e gerar o pacote da Play Store (`.aab`):
+
+```bash
+scripts/cria-chave.sh                    # uma vez; a chave fica fora do projeto
+MEU_PLANTAO_KEYSTORE=~/meu-plantao-chave/meu-plantao.jks MEU_PLANTAO_KEY_ALIAS=meu-plantao \
+MEU_PLANTAO_KEYSTORE_PASSWORD='...' FORMATO=ambos scripts/build-apk.sh
+```
 
 ### Pelo Expo Go (para desenvolver)
 
@@ -66,7 +77,7 @@ estiverem, `npx expo start --tunnel`.
 | ✅ | **4. Recorrência** | escala fixa (semanal, ciclo 12×36 / 24×72, mensal) com exceções; só este / próximos / todos; marcar como pago; deslizar para navegar e excluir |
 | ✅ | **5. Financeiro** | previsão por mês e por local, atrasados, baixa em lote, feriados nacionais |
 | ✅ | **6. Google Calendar** | o plantão vira evento no calendário do celular (e no Google, pela conta do aparelho), com lembrete; acompanha as mudanças |
-| | 7. APK e backup | instalável, com exportação e restauração |
+| ✅ | **7. Dados e publicação** | backup e restauração em arquivo, planilha (CSV), tema claro/escuro/do celular, ícone e abertura definitivos, só as permissões do calendário, assinatura própria e pacote `.aab` |
 
 ---
 
@@ -116,7 +127,12 @@ src/
     datetime.ts          datas pt-BR, grade do mês, virada de madrugada
     pagamento.ts         regra de pagamento: quando cada plantão cai na conta
     locais.ts            modelo, validação e cor sugerida
-  theme/                 cores, espaçamento, tipografia
+  theme/                 cores, espaçamento, tipografia, escolha do tema
+scripts/
+  build-apk.sh           APK/AAB a partir do último commit (chave de teste ou a sua)
+  cria-chave.sh          cria a sua chave de assinatura, fora do projeto
+  gera-icones.mjs        desenha e exporta o ícone, a abertura e as imagens da loja
+assets/design/           os desenhos em SVG e as imagens da Play Store
 tests/                   suíte sem emulador — ver abaixo
 ```
 
@@ -125,7 +141,7 @@ tests/                   suíte sem emulador — ver abaixo
 ## Testes
 
 ```bash
-npm test            # 963 verificações, sem emulador, sem servidor
+npm test            # 1178 verificações, sem emulador, sem servidor
 npm run typecheck
 ```
 
@@ -146,6 +162,10 @@ O que a suíte rápida cobre:
 | `financeiro-db.mjs` | a consulta com a regra do local, a baixa em lote (não paga cancelado, não sobrescreve quem já recebeu, mil de uma vez) e **falha injetada em cada lote** |
 | `calendario.mjs` | o que um plantão vira como evento (título, local, notas, lembrete), quando o valor aparece (só se pedido), a assinatura que decide se há o que atualizar, a janela de datas e a leitura da configuração (inclusive texto estragado) |
 | `calendario-db.mjs` | a sincronização contra um **calendário falso**: criar, atualizar só o que mudou, remover, refazer o que a pessoa apagou no calendário, trocar de calendário, desconectar com e sem remover, nunca duas rodadas ao mesmo tempo — e **falha injetada em cada escrita** (a rodada seguinte sempre termina o serviço, sem duplicar) |
+| `backup.mjs` | o arquivo de backup: formato versionado, e a **validação** — o que for estranho (JSON quebrado, versão futura, referência a local que não existe, escala duplicada, valor negativo, fim antes do início…) é recusado com a explicação, antes de tocar em qualquer dado |
+| `backup-db.mjs` | fazer e restaurar backup no SQLite: tudo ou nada (**falha injetada em cada escrita** — o que você tinha continua lá), restaurar em cima de dados e ida-e-volta idêntica, mais de mil plantões (o SQLite limita 999 variáveis por comando), coluna de versão futura que não vaza |
+| `exportacao.mjs` | a planilha: `;` e vírgula decimal (Excel em português), BOM, acentos, aspas e quebra de linha nas observações, proteção contra fórmula (`=`, `+`, `-`, `@` no começo de uma célula), filtro por ano |
+| `tema.mjs` | a escolha do tema e o que acontece com valor estragado no banco |
 | `series-db.mjs` | criar, estender, editar e excluir escalas no SQLite; o que **nunca** pode se perder (realizado, pago, ajustado à mão); e **falha injetada em cada passo** de cada operação para provar que nada fica pela metade |
 
 A regra de pagamento e a lógica de plantões passaram por **teste de mutação**:
@@ -153,7 +173,7 @@ quebrei o código de propósito (trocar `<=` por `<`, tirar o ajuste de dia 31,
 fazer o cancelado contar no valor…) — 8 mutações na regra de pagamento, 18 em
 plantões, 19 em recorrência, 38 nas escalas do banco, 7 em pagamento/exclusão,
 18 em feriados, 25 no motor financeiro, 16 na baixa em lote, 33 na sincronização do
-calendário e 20 no conteúdo do evento, todas detectadas. As que sobreviveram mostraram lacunas: ou um caso sem teste
+calendário, 20 no conteúdo do evento, 50 no backup e 34 na planilha, todas detectadas. As que sobreviveram mostraram lacunas: ou um caso sem teste
 (que ganhou teste) ou código redundante (que foi removido).
 
 ### Testando a interface
@@ -170,6 +190,7 @@ npm run test:escalas                 # noutro: escalas, pagamento e gestos (com 
 npm run test:atalhos                 # noutro: botão Local, o «+» do formulário, segurar o dia
 npm run test:financeiro              # noutro: atrasados, baixa parcial e em lote, desfazer, navegar entre meses
 npm run test:deslizar                # noutro: o calendário acompanha o dedo (medido com o dedo ainda apoiado)
+npm run test:dados                   # noutro: backup baixado de verdade, restaurar (e desfazer), planilha, tema
 ```
 
 `test:calendario` precisa do servidor iniciado com um calendário falso (o navegador não
@@ -184,6 +205,9 @@ npm run test:calendario              # conectar, trocar, parar, permissão negad
 npm run test:telas                   # retratos das quatro abas nos dois temas
 ```
 
+`test:dados` baixa o arquivo de backup e a planilha de verdade, escolhe um arquivo pelo
+seletor, recusa um arquivo estragado sem mexer em nada, restaura e desfaz.
+
 `test:fluxo` percorre 45 verificações pela interface — validação do formulário,
 a cor escolhida chegando ao pontinho, aviso de cor repetida, edição, arquivar com
 confirmação, restaurar e os dados sobrevivendo a recarregar a página. As imagens
@@ -195,8 +219,9 @@ SQLite é nativo.
 
 Rodam em Linux, sobre `react-native-web`. O comportamento no Android de
 verdade — teclado sobrepondo campos, área segura, gesto de voltar, o
-`expo-sqlite` nativo, **e o calendário do aparelho** (o pedido de permissão, os
-eventos aparecendo no Google Calendar, o lembrete tocando) — só se confirma abrindo
-no aparelho. O que merece
+`expo-sqlite` nativo, **o calendário do aparelho** (o pedido de permissão, os
+eventos aparecendo no Google Calendar, o lembrete tocando) **e o compartilhamento e o
+seletor de arquivos do Android** (onde o backup e a planilha vão parar, e de onde o
+backup é escolhido na hora de restaurar) — só se confirma abrindo no aparelho. O que merece
 atenção ao abrir o formulário no celular: se o teclado numérico cobre o campo
 que você está digitando.

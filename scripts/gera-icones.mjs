@@ -85,8 +85,21 @@ const SAIDAS = [
   // Tela de abertura: o desenho sobre o fundo da marca (a cor do fundo e definida no app.json).
   { arquivo: "splash-icon.png", tamanho: 1024, fundo: null, modo: "cor", escala: 1.2, deslocaY: 20 },
   // Favicon: desenhado em 1024 e entregue em 192 (o navegador reduz para 16/32/48).
+  // Play Store: o icone de 512 x 512 (a loja aplica a mascara arredondada sozinha).
+  { arquivo: "icone-play-512.png", pasta: "design", tamanho: 1024, saida: 512, fundo: "marca", modo: "cor", escala: 1.12, deslocaY: 20 },
   { arquivo: "favicon.png", tamanho: 1024, saida: 192, fundo: "marca", modo: "cor", escala: 1.12, deslocaY: 20 },
 ];
+
+/** Imagem de destaque da Play Store (1024 x 500): o desenho a esquerda e o nome do app a direita. */
+function destaque() {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500">
+    <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#14665F"/><stop offset="1" stop-color="${MARCA_ESCURA}"/></linearGradient></defs>
+    <rect width="1024" height="500" fill="url(#g)"/>
+    <g transform="translate(218 262) scale(0.52)">${calendario("cor")}</g>
+    <text x="414" y="256" font-family="Helvetica, Arial, sans-serif" font-size="82" font-weight="700" fill="#FFFFFF">Meu Plantão</text>
+    <text x="418" y="312" font-family="Helvetica, Arial, sans-serif" font-size="29" fill="#BFE3DE">Seus plantões, valores e recebimentos</text>
+  </svg>`;
+}
 
 const CHROMIUM = ["/opt/pw-browsers/chromium", "/usr/bin/chromium", "/usr/bin/chromium-browser", "/usr/bin/google-chrome"].find((c) => fs.existsSync(c));
 if (!CHROMIUM) throw new Error("Chromium nao encontrado.");
@@ -96,6 +109,7 @@ const navegador = await chromium.launch({ executablePath: CHROMIUM, args: ["--no
 
 for (const s of SAIDAS) {
   const lado = s.saida ?? s.tamanho;
+  const pasta = s.pasta === "design" ? DESENHOS : IMAGENS;
   const desenho = svg(s);
   fs.writeFileSync(path.join(DESENHOS, s.arquivo.replace(".png", ".svg")), desenho);
 
@@ -103,8 +117,19 @@ for (const s of SAIDAS) {
   await pagina.setContent(`<html><body style="margin:0;background:transparent">${desenho}</body></html>`);
   const png = await pagina.screenshot({ omitBackground: true, clip: { x: 0, y: 0, width: lado, height: lado } });
   await pagina.close();
-  fs.writeFileSync(path.join(IMAGENS, s.arquivo), png);
+  fs.writeFileSync(path.join(pasta, s.arquivo), png);
   console.log(`  ${s.arquivo.padEnd(32)} ${lado}x${lado}  (${png.length} bytes)`);
+}
+
+{
+  const svgDestaque = destaque();
+  fs.writeFileSync(path.join(DESENHOS, "imagem-destaque-play.svg"), svgDestaque);
+  const pagina = await navegador.newPage({ viewport: { width: 1024, height: 500 }, deviceScaleFactor: 1 });
+  await pagina.setContent(`<html><body style="margin:0">${svgDestaque}</body></html>`);
+  const png = await pagina.screenshot({ clip: { x: 0, y: 0, width: 1024, height: 500 } });
+  await pagina.close();
+  fs.writeFileSync(path.join(DESENHOS, "imagem-destaque-play.png"), png);
+  console.log(`  ${"imagem-destaque-play.png".padEnd(32)} 1024x500  (${png.length} bytes)`);
 }
 
 await navegador.close();
