@@ -2,7 +2,15 @@
  * Acesso aos plantoes. Mesma regra da camada de locais: depende de `Executor`,
  * nao do `expo-sqlite`, para os testes rodarem os mesmos comandos SQL do app.
  */
-import { normalizaObservacao, type PlantaoComLocal, type PlantaoInput, type StatusPlantao } from "../lib/plantoes.ts";
+import {
+  normalizaObservacao,
+  normalizaUnidade,
+  sugestoesDeUnidade,
+  type PlantaoComLocal,
+  type PlantaoInput,
+  type StatusPlantao,
+  type SugestaoDeUnidade,
+} from "../lib/plantoes.ts";
 import type { Executor } from "./locais.ts";
 import { apagaPlantaoRegistrando, recalculaExcecao } from "./series.ts";
 
@@ -15,6 +23,7 @@ interface Linha {
   desconto_percentual: number;
   status: StatusPlantao;
   observacao: string | null;
+  unidade: string | null;
   criado_em: number;
   atualizado_em: number;
   serie_id: number | null;
@@ -38,6 +47,7 @@ function paraPlantao(l: Linha): PlantaoComLocal {
   return {
     id: l.id,
     localId: l.local_id,
+    unidade: l.unidade,
     inicio: l.inicio,
     fim: l.fim,
     valorBruto: l.valor_bruto,
@@ -82,10 +92,21 @@ export async function buscaPlantao(db: Executor, id: number): Promise<PlantaoCom
 export async function criaPlantao(db: Executor, e: PlantaoInput, agora = Date.now()): Promise<number> {
   const r = await db.runAsync(
     `INSERT INTO plantoes (
-       local_id, inicio, fim, valor_bruto, desconto_percentual,
+       local_id, unidade, inicio, fim, valor_bruto, desconto_percentual,
        status, observacao, criado_em, atualizado_em
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [e.localId, e.inicio, e.fim, e.valorBruto, e.descontoPercentual, e.status, observacao(e.observacao), agora, agora],
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      e.localId,
+      normalizaUnidade(e.unidade),
+      e.inicio,
+      e.fim,
+      e.valorBruto,
+      e.descontoPercentual,
+      e.status,
+      observacao(e.observacao),
+      agora,
+      agora,
+    ],
   );
   return r.lastInsertRowId;
 }
@@ -106,11 +127,23 @@ export async function atualizaPlantao(
   return db.transacao(async (ex) => {
     const r = await ex.runAsync(
       `UPDATE plantoes SET
-         local_id = ?, inicio = ?, fim = ?, valor_bruto = ?, desconto_percentual = ?,
+         local_id = ?, unidade = ?, inicio = ?, fim = ?, valor_bruto = ?, desconto_percentual = ?,
          status = ?, observacao = ?, atualizado_em = ?,
          pago_em = CASE WHEN ? = 'realizado' THEN pago_em ELSE NULL END
        WHERE id = ?`,
-      [e.localId, e.inicio, e.fim, e.valorBruto, e.descontoPercentual, e.status, observacao(e.observacao), agora, e.status, id],
+      [
+        e.localId,
+        normalizaUnidade(e.unidade),
+        e.inicio,
+        e.fim,
+        e.valorBruto,
+        e.descontoPercentual,
+        e.status,
+        observacao(e.observacao),
+        agora,
+        e.status,
+        id,
+      ],
     );
     if (r.changes === 0) return false;
     await recalculaExcecao(ex, id);
@@ -169,6 +202,37 @@ export async function excluiPlantao(db: Executor, id: number): Promise<boolean> 
 export async function contaPlantoesDoLocal(db: Executor, localId: number): Promise<number> {
   const l = await db.getFirstAsync<{ total: number }>("SELECT COUNT(*) AS total FROM plantoes WHERE local_id = ?", [localId]);
   return l?.total ?? 0;
+}
+
+/**
+ * As unidades ja usadas num local (da mais recente para a mais antiga), cada uma com o
+ * ultimo valor lancado: o formulario sugere o nome e ja preenche o valor. Le os 500
+ * plantoes mais recentes com unidade — de sobra para uma agenda de anos.
+ */
+export async function unidadesDoLocal(db: Executor, localId: number): Promise<SugestaoDeUnidade[]> {
+  const linhas = await db.getAllAsync<{
+    unidade: string;
+    inicio: number;
+    fim: number;
+    valor_bruto: number;
+    status: StatusPlantao;
+  }>(
+    `SELECT unidade, inicio, fim, valor_bruto, status
+       FROM plantoes
+      WHERE local_id = ? AND unidade IS NOT NULL AND status IN ('agendado', 'realizado')
+      ORDER BY inicio DESC, id DESC
+      LIMIT 500`,
+    [localId],
+  );
+  return sugestoesDeUnidade(
+    linhas.map((l) => ({
+      unidade: l.unidade,
+      inicio: l.inicio,
+      fim: l.fim,
+      valorBruto: l.valor_bruto,
+      status: l.status,
+    })),
+  );
 }
 
 /** Local do plantao lancado mais recentemente: vira a sugestao do proximo lancamento. */

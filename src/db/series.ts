@@ -24,7 +24,7 @@
  * Depende de `Executor`; nao importa `plantoes.ts` (ele e que importa este).
  */
 import { inicioDoDia, somaDias } from "../lib/datetime.ts";
-import { normalizaObservacao, type PlantaoInput } from "../lib/plantoes.ts";
+import { normalizaObservacao, normalizaUnidade, type PlantaoInput } from "../lib/plantoes.ts";
 import {
   HORIZONTE_INICIAL_DIAS,
   HORIZONTE_MAXIMO_DIAS,
@@ -65,6 +65,7 @@ interface LinhaSerie {
   valor_bruto: number;
   desconto_percentual: number;
   observacao: string | null;
+  unidade: string | null;
   gerado_ate: number;
   criado_em: number;
   atualizado_em: number;
@@ -74,6 +75,7 @@ function paraSerie(l: LinhaSerie): Serie {
   return {
     id: l.id,
     localId: l.local_id,
+    unidade: l.unidade,
     inicioMin: l.inicio_min,
     fimMin: l.fim_min,
     valorBruto: l.valor_bruto,
@@ -112,12 +114,13 @@ function colunas(s: SerieInput): Param[] {
     s.valorBruto,
     s.descontoPercentual,
     normalizaObservacao(s.observacao),
+    normalizaUnidade(s.unidade),
   ];
 }
 
 const SET_SERIE = `local_id = ?, tipo = ?, dias_semana = ?, cada = ?, dia_do_mes = ?,
   inicio_dia = ?, fim_dia = ?, inicio_min = ?, fim_min = ?,
-  valor_bruto = ?, desconto_percentual = ?, observacao = ?`;
+  valor_bruto = ?, desconto_percentual = ?, observacao = ?, unidade = ?`;
 
 function garanteValida(s: SerieInput): void {
   if (temErrosSerie(validaSerie(s))) throw new Error("A escala tem campos inválidos.");
@@ -155,9 +158,9 @@ function limiteDoHorizonte(serie: Serie, ate: number): number {
 
 const INSERE_OCORRENCIA = `
   INSERT OR IGNORE INTO plantoes (
-    local_id, inicio, fim, valor_bruto, desconto_percentual, status, observacao,
+    local_id, inicio, fim, valor_bruto, desconto_percentual, status, observacao, unidade,
     criado_em, atualizado_em, serie_id, ocorrencia_dia, excecao
-  ) VALUES (?, ?, ?, ?, ?, 'agendado', ?, ?, ?, ?, ?, 0)`;
+  ) VALUES (?, ?, ?, ?, ?, 'agendado', ?, ?, ?, ?, ?, ?, 0)`;
 
 async function insereOcorrencia(ex: Executor, serie: Serie, dia: number, agora: number): Promise<number> {
   const p = plantaoDaSerie(serie, dia);
@@ -168,6 +171,7 @@ async function insereOcorrencia(ex: Executor, serie: Serie, dia: number, agora: 
     p.valorBruto,
     p.descontoPercentual,
     p.observacao,
+    p.unidade,
     agora,
     agora,
     serie.id,
@@ -245,9 +249,9 @@ export async function criaSerie(
     const r = await ex.runAsync(
       `INSERT INTO series (
          local_id, tipo, dias_semana, cada, dia_do_mes, inicio_dia, fim_dia,
-         inicio_min, fim_min, valor_bruto, desconto_percentual, observacao,
+         inicio_min, fim_min, valor_bruto, desconto_percentual, observacao, unidade,
          gerado_ate, criado_em, atualizado_em
-       ) VALUES (${Array(15).fill("?").join(", ")})`,
+       ) VALUES (${Array(16).fill("?").join(", ")})`,
       [...colunas(entrada), 0, agora, agora],
     );
     const serie = await carregaSerie(ex, r.lastInsertRowId);
@@ -270,6 +274,7 @@ interface Existente {
   valor_bruto: number;
   desconto_percentual: number;
   observacao: string | null;
+  unidade: string | null;
 }
 
 const protegido = (e: Existente): boolean => e.status !== "agendado" || e.excecao === 1;
@@ -282,7 +287,8 @@ function difere(e: Existente, p: PlantaoInput): boolean {
     e.fim !== p.fim ||
     e.valor_bruto !== p.valorBruto ||
     e.desconto_percentual !== p.descontoPercentual ||
-    (e.observacao ?? null) !== (p.observacao ?? null)
+    (e.observacao ?? null) !== (p.observacao ?? null) ||
+    (e.unidade ?? null) !== (p.unidade ?? null)
   );
 }
 
@@ -302,7 +308,7 @@ async function reconcilia(ex: Executor, serieId: number, agora: number): Promise
 
   const existentes = await ex.getAllAsync<Existente>(
     `SELECT id, ocorrencia_dia, status, excecao, local_id, inicio, fim,
-            valor_bruto, desconto_percentual, observacao
+            valor_bruto, desconto_percentual, observacao, unidade
        FROM plantoes WHERE serie_id = ?`,
     [serieId],
   );
@@ -331,9 +337,9 @@ async function reconcilia(ex: Executor, serieId: number, agora: number): Promise
     if (difere(e, p)) {
       await ex.runAsync(
         `UPDATE plantoes SET local_id = ?, inicio = ?, fim = ?, valor_bruto = ?,
-                desconto_percentual = ?, observacao = ?, atualizado_em = ?
+                desconto_percentual = ?, observacao = ?, unidade = ?, atualizado_em = ?
           WHERE id = ?`,
-        [p.localId, p.inicio, p.fim, p.valorBruto, p.descontoPercentual, p.observacao, agora, e.id],
+        [p.localId, p.inicio, p.fim, p.valorBruto, p.descontoPercentual, p.observacao, p.unidade, agora, e.id],
       );
     }
   }
@@ -355,7 +361,7 @@ async function reconcilia(ex: Executor, serieId: number, agora: number): Promise
 export async function recalculaExcecao(ex: Executor, plantaoId: number): Promise<void> {
   const p = await ex.getFirstAsync<Existente & { serie_id: number | null }>(
     `SELECT id, serie_id, ocorrencia_dia, status, excecao, local_id, inicio, fim,
-            valor_bruto, desconto_percentual, observacao
+            valor_bruto, desconto_percentual, observacao, unidade
        FROM plantoes WHERE id = ?`,
     [plantaoId],
   );
@@ -436,9 +442,9 @@ export async function editaSerie(
     const r = await ex.runAsync(
       `INSERT INTO series (
          local_id, tipo, dias_semana, cada, dia_do_mes, inicio_dia, fim_dia,
-         inicio_min, fim_min, valor_bruto, desconto_percentual, observacao,
+         inicio_min, fim_min, valor_bruto, desconto_percentual, observacao, unidade,
          gerado_ate, criado_em, atualizado_em
-       ) VALUES (${Array(15).fill("?").join(", ")})`,
+       ) VALUES (${Array(16).fill("?").join(", ")})`,
       [...colunas(depois), serie.geradoAte, agora, agora],
     );
     const novaId = r.lastInsertRowId;

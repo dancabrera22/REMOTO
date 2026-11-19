@@ -27,6 +27,8 @@ import { testes as plantoes } from "./plantoes.mjs";
 import { testes as plantoesDb } from "./plantoes-db.mjs";
 import { testes as recorrencia } from "./recorrencia.mjs";
 import { testes as seriesDb } from "./series-db.mjs";
+import { testes as unidades } from "./unidades.mjs";
+import { testes as unidadesDb } from "./unidades-db.mjs";
 
 console.log("\n── lógica (dinheiro e datas)");
 logica();
@@ -60,6 +62,12 @@ recorrencia();
 
 console.log("\n── escalas no banco (criar, editar, excluir, falhas no meio)");
 await seriesDb();
+
+console.log("\n── unidade do plantão (nome, sugestões, valor proposto)");
+unidades();
+
+console.log("\n── unidade no banco (migração, gravar, escalas)");
+await unidadesDb();
 
 console.log("\n── financeiro no banco (consulta, baixa em lote, falhas)");
 await financeiroDb();

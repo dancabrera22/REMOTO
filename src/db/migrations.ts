@@ -196,6 +196,22 @@ export const migracoes: Migracao[] = [
       );
     `,
   },
+  {
+    versao: 5,
+    descricao: "unidade do plantao: o nome do lugar dentro do local (ex.: Itaim, na rede Rede D'Or)",
+    sql: `
+      -- O local e a rede (nome e cor); a unidade e o nome que a pessoa da ao plantao
+      -- ("Itaim", "Central"), digitado livremente. Cada unidade tem o proprio valor, que ja
+      -- mora no plantao (valor_bruto): o prazo de pagamento e o desconto seguem no local.
+      -- NULL = sem unidade, como todos os plantoes ja lancados.
+      ALTER TABLE plantoes ADD COLUMN unidade TEXT;
+      ALTER TABLE series   ADD COLUMN unidade TEXT;
+
+      -- As sugestoes do formulario leem os plantoes de um local por unidade, do mais recente.
+      CREATE INDEX idx_plantoes_unidade ON plantoes (local_id, unidade, inicio)
+        WHERE unidade IS NOT NULL;
+    `,
+  },
 ];
 
 export const versaoEsquema = migracoes[migracoes.length - 1]!.versao;

@@ -34,6 +34,11 @@ export function contaNoValor(status: StatusPlantao): boolean {
 
 export interface PlantaoInput {
   localId: number;
+  /**
+   * O nome que a pessoa da ao lugar dentro do local ("Itaim", na rede Rede D'Or), ou `null`.
+   * Digitado livremente; ver `normalizaUnidade`. O valor deste plantao e proprio dele.
+   */
+  unidade: string | null;
   inicio: number;
   fim: number;
   valorBruto: Centavos;
@@ -63,6 +68,37 @@ export interface Plantao extends PlantaoInput {
 /** O plantao com o necessario do local para desenhar a agenda sem outra consulta. */
 export interface PlantaoComLocal extends Plantao {
   local: { nome: string; apelido: string | null; cor: string; arquivado: boolean };
+}
+
+export const LIMITE_UNIDADE = 60;
+
+/** Unidade opcional: espacos repetidos viram um, vazia vira `null`, e o limite e aplicado antes de gravar. */
+export function normalizaUnidade(valor: string | null | undefined): string | null {
+  const t = (valor ?? "").replace(/\s+/g, " ").trim();
+  return t ? t.slice(0, LIMITE_UNIDADE).trim() : null;
+}
+
+/**
+ * A chave pela qual duas grafias contam como a mesma unidade: sem acento, sem maiuscula,
+ * sem espaco sobrando. "Itaim", "itaim " e "ITAIM" sao a mesma; "Itaim" e "Itaim 2" nao.
+ */
+export function chaveUnidade(valor: string | null | undefined): string {
+  const n = normalizaUnidade(valor) ?? "";
+  const semAcento = typeof n.normalize === "function" ? n.normalize("NFD").replace(/[\u0300-\u036f]/g, "") : n;
+  return semAcento.toLowerCase();
+}
+
+/**
+ * Como o plantao se chama nas listas: "Itaim · Rede D'Or" (a unidade vem primeiro, e ela que
+ * diz onde voce estara) ou so o local, como sempre foi, quando nao ha unidade.
+ */
+export function tituloDoPlantao(p: {
+  unidade?: string | null;
+  local: { nome: string; apelido?: string | null };
+}): string {
+  const u = normalizaUnidade(p.unidade);
+  if (u) return `${u} · ${p.local.nome}`;
+  return p.local.apelido ? `${p.local.nome} · ${p.local.apelido}` : p.local.nome;
 }
 
 export const LIMITE_OBSERVACAO = 300;
@@ -151,7 +187,9 @@ export const TURNOS_COMUNS = [
 
 /* -------------------------------- validacao -------------------------------- */
 
-export type ErrosPlantao = Partial<Record<"localId" | "horario" | "valorBruto" | "descontoPercentual" | "status" | "observacao", string>>;
+export type ErrosPlantao = Partial<
+  Record<"localId" | "unidade" | "horario" | "valorBruto" | "descontoPercentual" | "status" | "observacao", string>
+>;
 
 export interface ResultadoValidacaoPlantao {
   erros: ErrosPlantao;
@@ -210,11 +248,16 @@ export function validaPlantao(
     erros.observacao = `Use até ${LIMITE_OBSERVACAO} caracteres.`;
   }
 
+  // Mede a unidade como o formulario a digita (espacos repetidos ja contam como um).
+  if ((entrada.unidade ?? "").replace(/\s+/g, " ").trim().length > LIMITE_UNIDADE) {
+    erros.unidade = `Use até ${LIMITE_UNIDADE} caracteres.`;
+  }
+
   if (!erros.horario && contaNoValor(entrada.status)) {
     const colide = conflitosCom(entrada, existentes, ignoraId);
     if (colide.length) {
       const p = colide[0];
-      avisos.conflito = `Conflita com ${p.local.nome} (${descreveHorario(p.inicio, p.fim)}).`;
+      avisos.conflito = `Conflita com ${tituloDoPlantao(p)} (${descreveHorario(p.inicio, p.fim)}).`;
     }
   }
 
@@ -226,6 +269,101 @@ export function temErrosPlantao(erros: ErrosPlantao): boolean {
 }
 
 /* ---------------------------------- valores ---------------------------------- */
+
+/* ----------------------- unidades: sugestoes e ultimo valor ----------------------- */
+
+/** Um plantao ja lancado com unidade: o que as sugestoes do formulario leem. */
+export interface UsoDeUnidade {
+  unidade: string;
+  inicio: number;
+  fim: number;
+  valorBruto: Centavos;
+  status: StatusPlantao;
+}
+
+export interface SugestaoDeUnidade {
+  /** A grafia do uso mais recente ("Itaim", mesmo que antes tenha sido "itaim"). */
+  unidade: string;
+  chave: string;
+  /** Inicio do plantao mais recente dessa unidade. */
+  ultimoUso: number;
+  usos: number;
+  /** O valor mais recente de cada duracao (em minutos): 12 h e 24 h na mesma unidade valem diferente. */
+  valorPorMinutos: Record<number, Centavos>;
+  /** O valor do uso mais recente, de qualquer duracao, e quantos minutos ele tinha. */
+  ultimoValor: Centavos;
+  ultimosMinutos: number;
+}
+
+/**
+ * Agrupa os plantoes de um local por unidade, da mais recente para a mais antiga.
+ * So conta o que aconteceu ou vai acontecer: cancelado e trocado nao dizem quanto vale.
+ */
+export function sugestoesDeUnidade(usos: readonly UsoDeUnidade[]): SugestaoDeUnidade[] {
+  const ordenados = [...usos]
+    .filter((u) => contaNoValor(u.status) && normalizaUnidade(u.unidade) !== null)
+    .sort((a, b) => b.inicio - a.inicio);
+
+  const mapa = new Map<string, SugestaoDeUnidade>();
+  for (const u of ordenados) {
+    const nome = normalizaUnidade(u.unidade)!;
+    const chave = chaveUnidade(nome);
+    const minutos = minutosEntre(u.inicio, u.fim);
+    const atual = mapa.get(chave);
+    if (!atual) {
+      mapa.set(chave, {
+        unidade: nome,
+        chave,
+        ultimoUso: u.inicio,
+        usos: 1,
+        valorPorMinutos: { [minutos]: u.valorBruto },
+        ultimoValor: u.valorBruto,
+        ultimosMinutos: minutos,
+      });
+      continue;
+    }
+    atual.usos += 1;
+    // Veio do mais recente para o mais antigo: o primeiro valor visto de cada duracao e o mais novo.
+    if (!(minutos in atual.valorPorMinutos)) atual.valorPorMinutos[minutos] = u.valorBruto;
+  }
+  return [...mapa.values()].sort(
+    (a, b) => b.ultimoUso - a.ultimoUso || a.unidade.localeCompare(b.unidade, "pt-BR"),
+  );
+}
+
+export type OrigemDoValor = "unidade" | "unidade_outra_duracao" | "local" | "nenhuma";
+
+export interface ValorSugerido {
+  valor: Centavos;
+  origem: OrigemDoValor;
+  /** De que duracao era o plantao de onde veio o valor (so quando veio de uma unidade). */
+  minutos?: number;
+}
+
+/**
+ * Que valor o formulario propoe. Em ordem: o ultimo valor daquela unidade NESSA duracao;
+ * o ultimo valor da unidade, de outra duracao (a tela avisa que a duracao difere);
+ * o valor padrao do local; nada. A pessoa pode trocar o valor de qualquer um deles.
+ */
+export function valorParaUnidade(opcoes: {
+  unidade: string | null;
+  inicio: number;
+  fim: number;
+  sugestoes: readonly SugestaoDeUnidade[];
+  local: Pick<Local, "modoValor" | "valorPadrao"> | null;
+}): ValorSugerido {
+  const minutos = minutosEntre(opcoes.inicio, opcoes.fim);
+  const chave = chaveUnidade(opcoes.unidade);
+  const s = chave ? opcoes.sugestoes.find((x) => x.chave === chave) : undefined;
+  if (s) {
+    if (minutos in s.valorPorMinutos) return { valor: s.valorPorMinutos[minutos]!, origem: "unidade", minutos };
+    return { valor: s.ultimoValor, origem: "unidade_outra_duracao", minutos: s.ultimosMinutos };
+  }
+  if (opcoes.local && opcoes.local.valorPadrao > 0) {
+    return { valor: valorSugeridoPara(opcoes.local, opcoes.inicio, opcoes.fim), origem: "local" };
+  }
+  return { valor: 0, origem: "nenhuma" };
+}
 
 /** Valor sugerido para um plantao neste local, nesta duracao. */
 export function valorSugeridoPara(local: Pick<Local, "modoValor" | "valorPadrao">, inicio: number, fim: number): Centavos {

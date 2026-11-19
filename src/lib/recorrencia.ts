@@ -18,7 +18,7 @@ import {
   somaDias,
 } from "./datetime.ts";
 import type { Centavos } from "./money.ts";
-import { montaIntervalo, type PlantaoInput } from "./plantoes.ts";
+import { LIMITE_UNIDADE, montaIntervalo, normalizaUnidade, type PlantaoInput } from "./plantoes.ts";
 
 export type TipoRecorrencia = "semanal" | "intervalo" | "mensal";
 
@@ -42,6 +42,8 @@ export interface RegraRecorrencia {
 /** Como e cada plantao da escala. */
 export interface ModeloSerie {
   localId: number;
+  /** Ver `PlantaoInput.unidade`; todos os plantoes da escala a levam. */
+  unidade: string | null;
   /** Minutos desde a meia-noite. Saida <= entrada significa que termina no dia seguinte. */
   inicioMin: number;
   fimMin: number;
@@ -170,6 +172,7 @@ export function plantaoDaSerie(modelo: ModeloSerie, dia: number, status: Plantao
   const { inicio, fim } = montaIntervalo(dia, modelo.inicioMin, modelo.fimMin);
   return {
     localId: modelo.localId,
+    unidade: normalizaUnidade(modelo.unidade),
     inicio,
     fim,
     valorBruto: modelo.valorBruto,
@@ -182,7 +185,7 @@ export function plantaoDaSerie(modelo: ModeloSerie, dia: number, status: Plantao
 /* -------------------------------- validacao -------------------------------- */
 
 export type ErrosSerie = Partial<
-  Record<"diasSemana" | "cada" | "diaDoMes" | "fimDia" | "localId" | "horario" | "valorBruto" | "descontoPercentual", string>
+  Record<"diasSemana" | "cada" | "diaDoMes" | "fimDia" | "localId" | "unidade" | "horario" | "valorBruto" | "descontoPercentual", string>
 >;
 
 export function validaSerie(s: SerieInput): ErrosSerie {
@@ -190,6 +193,7 @@ export function validaSerie(s: SerieInput): ErrosSerie {
   const r = s.regra;
 
   if (!Number.isInteger(s.localId) || s.localId <= 0) erros.localId = "Escolha o local.";
+  if ((s.unidade ?? "").replace(/\s+/g, " ").trim().length > LIMITE_UNIDADE) erros.unidade = `Use até ${LIMITE_UNIDADE} caracteres.`;
   if (
     !Number.isInteger(s.inicioMin) ||
     !Number.isInteger(s.fimMin) ||
