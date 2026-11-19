@@ -72,6 +72,7 @@ export function testes() {
 
   igual("unidade normal nao da erro", validaPlantao(plantao({ unidade: "Itaim" })).erros.unidade, undefined);
   igual("sem unidade nao da erro", validaPlantao(plantao()).erros.unidade, undefined);
+  igual("exatamente 60 caracteres e aceito (o limite e inclusivo)", validaPlantao(plantao({ unidade: "x".repeat(60) })).erros.unidade, undefined);
   check("unidade de 61 caracteres da erro", Boolean(validaPlantao(plantao({ unidade: "x".repeat(61) })).erros.unidade));
   igual("espacos repetidos nao estouram o limite", validaPlantao(plantao({ unidade: "a" + " ".repeat(80) + "b" })).erros.unidade, undefined);
   const outro = [{ id: 9, ...plantao({ unidade: "Itaim", inicio: instante(2026, 10, 20, 7), fim: instante(2026, 10, 20, 13) }), local: { nome: "Rede D'Or", apelido: null, cor: "#000", arquivado: false }, status: "agendado" }];
@@ -83,6 +84,7 @@ export function testes() {
   igual("o plantao de uma escala leva a unidade do modelo", plantaoDaSerie(modelo, instante(2026, 10, 17)).unidade, "Itaim");
   igual("e a normaliza", plantaoDaSerie({ ...modelo, unidade: "  Itaim   Central " }, instante(2026, 10, 17)).unidade, "Itaim Central");
   igual("modelo antigo, sem o campo, vira sem unidade", plantaoDaSerie({ ...modelo, unidade: undefined }, instante(2026, 10, 17)).unidade, null);
+  igual("escala com unidade de 60 caracteres passa", validaSerie({ ...modelo, unidade: "x".repeat(60), regra }).unidade, undefined);
   igual("escala com unidade valida passa", validaSerie({ ...modelo, regra }).unidade, undefined);
   check("escala com unidade longa demais nao passa", Boolean(validaSerie({ ...modelo, unidade: "x".repeat(61), regra }).unidade));
 

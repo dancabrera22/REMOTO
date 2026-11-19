@@ -227,7 +227,7 @@ async function main() {
   igual("nome do arquivo de todos os anos", csv.nome, "meu-plantao-plantoes-todos.csv");
   check("comeca com a marca de UTF-8", csv.conteudo.startsWith(BOM));
   const linhas = csv.conteudo.slice(1).split("\r\n");
-  igual("cabecalho certo", linhas[0], "Data;Dia;Início;Fim;Horas;Local;Situação;Conta no valor;Valor bruto;Desconto (%);Valor líquido;Recebimento previsto;Pago em;Observação;Escala");
+  igual("cabecalho certo", linhas[0], "Data;Dia;Início;Fim;Horas;Local;Unidade;Situação;Conta no valor;Valor bruto;Desconto (%);Valor líquido;Recebimento previsto;Pago em;Observação;Escala");
   igual("3 plantoes + cabecalho + linha final", linhas.length, 5);
   check("traz o local e o valor sem R$", linhas.some((l) => l.includes(";Hospital A;") && l.includes(";1000,00;")));
   check("o de UPA Norte tambem", linhas.some((l) => l.includes(";UPA Norte;") && l.includes(";500,00;")));
