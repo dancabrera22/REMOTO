@@ -7,6 +7,7 @@ import {
   LIMITE_UNIDADE,
   chaveUnidade,
   normalizaUnidade,
+  situacaoDoRenomear,
   sugestoesDeUnidade,
   tituloDoPlantao,
   validaPlantao,
@@ -149,6 +150,19 @@ export function testes() {
   v = valorParaUnidade({ unidade: "Nova", ...dia(7, 19), sugestoes: s, local: { modoValor: "plantao", valorPadrao: 0 } });
   igual("sem valor padrao e sem historico: nada", v.origem, "nenhuma");
   igual("e valor zero", v.valor, 0);
+
+  /* ------------------------------- renomear: o que acontece ------------------------------- */
+
+  const cx = [{ chave: "itaim" }, { chave: "central" }];
+  igual("nome vazio nao serve", situacaoDoRenomear(cx, "Itaim", "   "), "vazio");
+  igual("o mesmo nome: nada a fazer", situacaoDoRenomear(cx, "Itaim", "Itaim"), "igual");
+  igual("o mesmo nome com espacos sobrando tambem", situacaoDoRenomear(cx, "Itaim", "  Itaim  "), "igual");
+  igual("so a grafia (maiuscula): e renomear, nao juntar com ela mesma", situacaoDoRenomear(cx, "itaim", "Itaim"), "renomear");
+  igual("so o acento: tambem", situacaoDoRenomear(cx, "Sao Luis", "São Luís"), "renomear");
+  igual("nome livre: renomear", situacaoDoRenomear(cx, "Itaim", "Itaim Novo"), "renomear");
+  igual("nome de OUTRA unidade: juntar", situacaoDoRenomear(cx, "Itiam", "Itaim"), "mesclar");
+  igual("juntar nao liga para a grafia", situacaoDoRenomear(cx, "Itiam", "  CENTRAL "), "mesclar");
+  igual("sem outras unidades, tudo e renomear", situacaoDoRenomear([], "Itiam", "Itaim"), "renomear");
 
   v = valorParaUnidade({ unidade: "Itaim", ...dia(7, 19), sugestoes: s, local: null });
   igual("sem local escolhido ainda, a unidade conhecida ainda vale", v.valor, 160000);

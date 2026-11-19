@@ -29,6 +29,7 @@ import { testes as recorrencia } from "./recorrencia.mjs";
 import { testes as seriesDb } from "./series-db.mjs";
 import { testes as unidades } from "./unidades.mjs";
 import { testes as unidadesDb } from "./unidades-db.mjs";
+import { testes as unidadesRenomear } from "./unidades-renomear.mjs";
 
 console.log("\n── lógica (dinheiro e datas)");
 logica();
@@ -68,6 +69,9 @@ unidades();
 
 console.log("\n── unidade no banco (migração, gravar, escalas)");
 await unidadesDb();
+
+console.log("\n── renomear e juntar unidades (banco, escalas, falhas)");
+await unidadesRenomear();
 
 console.log("\n── financeiro no banco (consulta, baixa em lote, falhas)");
 await financeiroDb();

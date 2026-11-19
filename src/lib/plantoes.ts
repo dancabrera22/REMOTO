@@ -331,6 +331,28 @@ export function sugestoesDeUnidade(usos: readonly UsoDeUnidade[]): SugestaoDeUni
   );
 }
 
+export type SituacaoDoRenomear = "vazio" | "igual" | "renomear" | "mesclar";
+
+/**
+ * O que acontece se a unidade `de` passar a se chamar `para`, olhando as outras unidades do local:
+ *   vazio     o nome novo e vazio (nao serve);
+ *   igual     o mesmo nome, nada a fazer;
+ *   renomear  um nome livre — ou so a mesma unidade com outra grafia ("itaim" -> "Itaim");
+ *   mesclar   ja existe OUTRA unidade com esse nome: os plantoes das duas viram uma so.
+ */
+export function situacaoDoRenomear(
+  sugestoes: readonly Pick<SugestaoDeUnidade, "chave">[],
+  de: string,
+  para: string,
+): SituacaoDoRenomear {
+  const novo = normalizaUnidade(para);
+  if (novo === null) return "vazio";
+  if (novo === normalizaUnidade(de)) return "igual";
+  const chaveNova = chaveUnidade(novo);
+  if (chaveNova === chaveUnidade(de)) return "renomear";
+  return sugestoes.some((s) => s.chave === chaveNova) ? "mesclar" : "renomear";
+}
+
 export type OrigemDoValor = "unidade" | "unidade_outra_duracao" | "local" | "nenhuma";
 
 export interface ValorSugerido {
