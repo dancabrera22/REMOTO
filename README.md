@@ -19,7 +19,9 @@ celular.
 > **Unidades (1.1).** O *local* é a rede ou o hospital — nome e cor, e como você recebe
 > (prazo e desconto). A *unidade* é o nome que você dá ao plantão dentro dele («Itaim»,
 > «Central») e cada unidade tem o **próprio valor**: ao lançar, o app sugere as unidades
-> que você já usou naquele local e preenche o último valor delas.
+> que você já usou naquele local e preenche o último valor delas. Na tela do local,
+> **Unidades deste local** lista cada uma com o último valor e deixa **renomear** (para
+> consertar «Itiam» ou «itaim»/«ITAIM» em todos os plantões de uma vez) ou **juntar** duas.
 
 ---
 
@@ -148,7 +150,7 @@ tests/                   suíte sem emulador — ver abaixo
 ## Testes
 
 ```bash
-npm test            # 1340 verificações, sem emulador, sem servidor
+npm test            # 1401 verificações, sem emulador, sem servidor
 npm run typecheck
 ```
 
@@ -175,6 +177,7 @@ O que a suíte rápida cobre:
 | `tema.mjs` | a escolha do tema e o que acontece com valor estragado no banco |
 | `unidades.mjs` | o nome da unidade (espaços, limite de 60, grafias que contam como a mesma: «Itaim», «ITAIM», «São Luís»/«sao luis»), o título «Itaim · Rede D'Or», as sugestões por local e o valor que o formulário propõe (mesma duração, outra duração, padrão do local, nada) |
 | `unidades-db.mjs` | a migração **de um banco já com dados** (nada some, tudo continua sem unidade), gravar e ler, as sugestões (cancelado não conta, vale o mais recente, mesmo com mais de 500 plantões) e as escalas: a unidade vai para cada plantão, uma edição em escala **não** sobrescreve o que você ajustou à mão nem o já realizado, e «este e os próximos» divide em duas |
+| `unidades-renomear.mjs` | renomear e juntar unidades: só o local escolhido, todas as grafias (Itiam/itiam), o cancelado também, o modelo da escala e seus plantões, a marca de «ajustado à mão» que volta a ser normal quando o plantão passa a bater com a escala — e **falha injetada em cada escrita**: o banco fica exatamente como estava |
 | `series-db.mjs` | criar, estender, editar e excluir escalas no SQLite; o que **nunca** pode se perder (realizado, pago, ajustado à mão); e **falha injetada em cada passo** de cada operação para provar que nada fica pela metade |
 
 A regra de pagamento e a lógica de plantões passaram por **teste de mutação**:
@@ -182,7 +185,7 @@ quebrei o código de propósito (trocar `<=` por `<`, tirar o ajuste de dia 31,
 fazer o cancelado contar no valor…) — 8 mutações na regra de pagamento, 18 em
 plantões, 19 em recorrência, 38 nas escalas do banco, 7 em pagamento/exclusão,
 18 em feriados, 25 no motor financeiro, 16 na baixa em lote, 33 na sincronização do
-calendário, 20 no conteúdo do evento, 50 no backup, 34 na planilha e 8 no deslizar suave (altura, destaque, legenda, esmaecer, lista, e o mesmo no Financeiro) e 45 na unidade (nome, sugestões, valor proposto, banco, escalas, backup, planilha, calendário, Financeiro), todas detectadas. As que sobreviveram mostraram lacunas: ou um caso sem teste
+calendário, 20 no conteúdo do evento, 50 no backup, 34 na planilha e 8 no deslizar suave (altura, destaque, legenda, esmaecer, lista, e o mesmo no Financeiro) e 59 na unidade e no renomear (nome, sugestões, valor proposto, banco, escalas, backup, planilha, calendário, Financeiro, renomear/juntar), todas detectadas. As que sobreviveram mostraram lacunas: ou um caso sem teste
 (que ganhou teste) ou código redundante (que foi removido).
 
 ### Testando a interface
@@ -201,7 +204,7 @@ npm run test:financeiro              # noutro: atrasados, baixa parcial e em lot
 npm run test:deslizar                # noutro: o calendário acompanha o dedo (medido com o dedo ainda apoiado)
 npm run test:dados                   # noutro: backup baixado de verdade, restaurar (e desfazer), planilha, tema
 npm run test:suave                   # noutro: a troca de mês grava a tela quadro a quadro e procura pulos e "piscadas"
-npm run test:unidades                # noutro: local sem valor, unidades diferentes na mesma rede, valor preenchido, Financeiro, escala
+npm run test:unidades                # noutro: local sem valor, unidades da mesma rede, valor preenchido, Financeiro, escala, renomear e juntar
 ```
 
 `test:calendario` precisa do servidor iniciado com um calendário falso (o navegador não
