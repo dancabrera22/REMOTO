@@ -122,6 +122,25 @@ export async function testes() {
   igual("o outro local tem as dele", (await unidadesDoLocal(ex, outra)).map((s) => s.unidade).join(","), "Outro hospital");
   igual("local sem unidade: lista vazia", (await unidadesDoLocal(ex, 9999)).length, 0);
 
+  // O limite de 500 leituras nao pode esconder o que importa: vale o mais RECENTE, e cancelado nao ocupa vaga.
+  {
+    const { db: dbg } = bancoMigrado();
+    const exg = adaptador(dbg);
+    const loc = await criaLocal(exg, novoLocal(), 1);
+    const insere = dbg.prepare(
+      `INSERT INTO plantoes (local_id, unidade, inicio, fim, valor_bruto, status, criado_em, atualizado_em) VALUES (?, ?, ?, ?, ?, ?, 1, 1)`,
+    );
+    const base = instante(2020, 0, 1, 7);
+    for (let k = 0; k < 520; k++) insere.run(loc, "Velha", base + k * 86400e3, base + k * 86400e3 + 12 * 3600e3, 10000 + k, "realizado");
+    const recente = instante(2026, 10, 1, 7);
+    insere.run(loc, "Nova", recente, recente + 12 * 3600e3, 150000, "realizado");
+    for (let k = 0; k < 510; k++) insere.run(loc, "Fantasma", recente + (k + 1) * 86400e3, recente + (k + 1) * 86400e3 + 3600e3, 1, "cancelado");
+    const grande = await unidadesDoLocal(exg, loc);
+    igual("com mais de 500 plantoes, a unidade mais recente nao some", grande.some((u) => u.unidade === "Nova"), true);
+    igual("e o cancelado nao toma o lugar de ninguem (nem vira unidade)", grande.map((u) => u.unidade).join(","), "Nova,Velha");
+    igual("o valor de Nova e o dela", grande[0].ultimoValor, 150000);
+  }
+
   /* ------------------------------------ escalas ------------------------------------ */
 
   const { db: db2 } = bancoMigrado();

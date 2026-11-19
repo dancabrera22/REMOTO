@@ -15,6 +15,11 @@ celular.
 > direto no Excel em português, e você escolhe o tema **claro, escuro ou do celular**.
 > O app só pede acesso ao **calendário** — nada de internet. Para publicar na Play
 > Store, veja o [PUBLICAR.md](PUBLICAR.md).
+>
+> **Unidades (1.1).** O *local* é a rede ou o hospital — nome e cor, e como você recebe
+> (prazo e desconto). A *unidade* é o nome que você dá ao plantão dentro dele («Itaim»,
+> «Central») e cada unidade tem o **próprio valor**: ao lançar, o app sugere as unidades
+> que você já usou naquele local e preenche o último valor delas.
 
 ---
 
@@ -96,12 +101,14 @@ plantão só diz onde e quando foi; a data do dinheiro sai do local.
 
 O esquema dessa regra já está na primeira migração — a Etapa 5 só precisa ler.
 
-**O valor é copiado para dentro de cada plantão.** No lançamento, o plantão
-guarda o valor bruto e o desconto do local *naquele momento*, em vez de ler o
-local depois. Reajustar o valor de um hospital em janeiro não pode mudar
-sozinho o que você já lançou em dezembro — há teste provando. Também por isso o
-plantão pode ter um valor diferente do padrão do local (um plantão extra, uma
-troca com adicional) sem tocar no cadastro.
+**O valor é do plantão, não do local.** O plantão guarda o próprio valor bruto e o
+desconto *daquele momento*, em vez de ler o local depois. Reajustar o valor de uma
+unidade em janeiro não pode mudar sozinho o que você já lançou em dezembro — há
+teste provando. Por isso cada unidade da mesma rede pode valer o que valer (e um
+plantão extra, uma troca com adicional, também) sem tocar no cadastro do local; o
+valor padrão do local é só uma sugestão, e opcional. Ao lançar, a ordem da
+sugestão é: o último valor *daquela unidade na mesma duração* (12 h e 24 h valem
+diferente), o último dela de outra duração (a tela avisa), o padrão do local.
 
 ---
 
@@ -141,7 +148,7 @@ tests/                   suíte sem emulador — ver abaixo
 ## Testes
 
 ```bash
-npm test            # 1193 verificações, sem emulador, sem servidor
+npm test            # 1340 verificações, sem emulador, sem servidor
 npm run typecheck
 ```
 
@@ -166,6 +173,8 @@ O que a suíte rápida cobre:
 | `backup-db.mjs` | fazer e restaurar backup no SQLite: tudo ou nada (**falha injetada em cada escrita** — o que você tinha continua lá), restaurar em cima de dados e ida-e-volta idêntica, mais de mil plantões (o SQLite limita 999 variáveis por comando), coluna de versão futura que não vaza |
 | `exportacao.mjs` | a planilha: `;` e vírgula decimal (Excel em português), BOM, acentos, aspas e quebra de linha nas observações, proteção contra fórmula (`=`, `+`, `-`, `@` no começo de uma célula), filtro por ano |
 | `tema.mjs` | a escolha do tema e o que acontece com valor estragado no banco |
+| `unidades.mjs` | o nome da unidade (espaços, limite de 60, grafias que contam como a mesma: «Itaim», «ITAIM», «São Luís»/«sao luis»), o título «Itaim · Rede D'Or», as sugestões por local e o valor que o formulário propõe (mesma duração, outra duração, padrão do local, nada) |
+| `unidades-db.mjs` | a migração **de um banco já com dados** (nada some, tudo continua sem unidade), gravar e ler, as sugestões (cancelado não conta, vale o mais recente, mesmo com mais de 500 plantões) e as escalas: a unidade vai para cada plantão, uma edição em escala **não** sobrescreve o que você ajustou à mão nem o já realizado, e «este e os próximos» divide em duas |
 | `series-db.mjs` | criar, estender, editar e excluir escalas no SQLite; o que **nunca** pode se perder (realizado, pago, ajustado à mão); e **falha injetada em cada passo** de cada operação para provar que nada fica pela metade |
 
 A regra de pagamento e a lógica de plantões passaram por **teste de mutação**:
@@ -173,7 +182,7 @@ quebrei o código de propósito (trocar `<=` por `<`, tirar o ajuste de dia 31,
 fazer o cancelado contar no valor…) — 8 mutações na regra de pagamento, 18 em
 plantões, 19 em recorrência, 38 nas escalas do banco, 7 em pagamento/exclusão,
 18 em feriados, 25 no motor financeiro, 16 na baixa em lote, 33 na sincronização do
-calendário, 20 no conteúdo do evento, 50 no backup, 34 na planilha e 8 no deslizar suave (altura, destaque, legenda, esmaecer, lista, e o mesmo no Financeiro), todas detectadas. As que sobreviveram mostraram lacunas: ou um caso sem teste
+calendário, 20 no conteúdo do evento, 50 no backup, 34 na planilha e 8 no deslizar suave (altura, destaque, legenda, esmaecer, lista, e o mesmo no Financeiro) e 45 na unidade (nome, sugestões, valor proposto, banco, escalas, backup, planilha, calendário, Financeiro), todas detectadas. As que sobreviveram mostraram lacunas: ou um caso sem teste
 (que ganhou teste) ou código redundante (que foi removido).
 
 ### Testando a interface
@@ -192,6 +201,7 @@ npm run test:financeiro              # noutro: atrasados, baixa parcial e em lot
 npm run test:deslizar                # noutro: o calendário acompanha o dedo (medido com o dedo ainda apoiado)
 npm run test:dados                   # noutro: backup baixado de verdade, restaurar (e desfazer), planilha, tema
 npm run test:suave                   # noutro: a troca de mês grava a tela quadro a quadro e procura pulos e "piscadas"
+npm run test:unidades                # noutro: local sem valor, unidades diferentes na mesma rede, valor preenchido, Financeiro, escala
 ```
 
 `test:calendario` precisa do servidor iniciado com um calendário falso (o navegador não
