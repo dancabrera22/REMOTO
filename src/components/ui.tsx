@@ -109,10 +109,13 @@ export function Button({
   largura,
   compacto,
   style,
+  rotuloAcessivel,
 }: {
   children: ReactNode;
   onPress?: () => void;
   compacto?: boolean;
+  /** Para quando o texto sozinho nao basta ("Renomear" aparece uma vez por unidade: diga qual). */
+  rotuloAcessivel?: string;
   variant?: "primary" | "secondary" | "ghost" | "danger";
   icone?: NomeIcone;
   disabled?: boolean;
@@ -132,6 +135,9 @@ export function Button({
     <Pressable
       onPress={onPress}
       disabled={disabled || !onPress}
+      // So quando ha um rotulo proprio o botao se anuncia como botao com esse nome (nos demais, o texto basta).
+      role={rotuloAcessivel ? "button" : undefined}
+      aria-label={rotuloAcessivel}
       style={({ pressed }) => [
         {
           flexDirection: "row",

@@ -11,6 +11,7 @@ import {
   Segmentado,
   SeletorCor,
 } from "@/components/form";
+import { UnidadesDoLocal } from "@/components/unidades-do-local";
 import { Button, Card, Icone, Secao, Txt } from "@/components/ui";
 import { atualizaLocal, arquivaLocal, buscaLocal, criaLocal, listaLocais } from "@/db/locais";
 import { contaSeriesAtivasDoLocal } from "@/db/series";
@@ -345,6 +346,10 @@ function Formulario({
                 erro={Boolean(mostra("apelido"))}
               />
             </Campo>
+
+            <Campo rotulo="Endereço" opcional>
+              <CampoTexto value={endereco} onChangeText={setEndereco} placeholder="Rua, número, bairro" maxLength={300} />
+            </Campo>
           </View>
 
           {/* ---------------------------------- cor ---------------------------------- */}
@@ -356,59 +361,9 @@ function Formulario({
             <PreviaCor cor={cor} nome={nome.trim() || "Seu local"} />
           </View>
 
-          {/* --------------------------------- valores --------------------------------- */}
-          <View style={{ gap: t.spacing.lg }}>
-            <Secao>Valor do plantão</Secao>
-
-            <Segmentado
-              opcoes={[
-                { valor: "plantao", rotulo: "Por plantão" },
-                { valor: "hora", rotulo: "Por hora" },
-              ]}
-              valor={modoValor}
-              onChange={setModoValor}
-            />
-
-            <Campo
-              rotulo={modoValor === "hora" ? "Valor da hora" : "Valor do plantão"}
-              erro={mostra("valorPadrao")}
-              dica="Já vem preenchido ao lançar um plantão aqui — e pode ser mudado em cada um."
-            >
-              <CampoDinheiro
-                valor={valorPadrao}
-                onChange={setValorPadrao}
-                erro={Boolean(mostra("valorPadrao"))}
-                sufixo={modoValor === "hora" ? "/ hora" : undefined}
-              />
-            </Campo>
-
-            <Campo
-              rotulo="Descontos"
-              opcional
-              erro={mostra("descontoPercentual")}
-              dica="IR, ISS, taxa de cooperativa… some tudo num só percentual."
-            >
-              <View style={{ flexDirection: "row", alignItems: "center", gap: t.spacing.sm }}>
-                <CampoTexto
-                  value={descontoTxt}
-                  onChangeText={(texto) => setDescontoTxt(texto.replace(/[^\d,.]/g, ""))}
-                  placeholder="0"
-                  keyboardType="decimal-pad"
-                  maxLength={5}
-                  erro={Boolean(mostra("descontoPercentual"))}
-                  style={{ width: 96, textAlign: "center" }}
-                  accessibilityLabel="Percentual de descontos"
-                />
-                <Txt variant="bodyStrong" tom="muted">
-                  %
-                </Txt>
-              </View>
-            </Campo>
-          </View>
-
           {/* ------------------------------- recebimento ------------------------------- */}
           <View style={{ gap: t.spacing.lg }}>
-            <Secao>Quando você recebe</Secao>
+            <Secao>Como você recebe</Secao>
 
             <Segmentado
               opcoes={[
@@ -486,17 +441,72 @@ function Formulario({
                 onChange={setAjuste}
               />
             </Campo>
+
+            <Campo
+              rotulo="Descontos"
+              opcional
+              erro={mostra("descontoPercentual")}
+              dica="IR, ISS, taxa de cooperativa… some tudo num só percentual."
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: t.spacing.sm }}>
+                <CampoTexto
+                  value={descontoTxt}
+                  onChangeText={(texto) => setDescontoTxt(texto.replace(/[^\d,.]/g, ""))}
+                  placeholder="0"
+                  keyboardType="decimal-pad"
+                  maxLength={5}
+                  erro={Boolean(mostra("descontoPercentual"))}
+                  style={{ width: 96, textAlign: "center" }}
+                  accessibilityLabel="Percentual de descontos"
+                />
+                <Txt variant="bodyStrong" tom="muted">
+                  %
+                </Txt>
+              </View>
+            </Campo>
+          </View>
+
+
+          {/* --------------------------------- valores --------------------------------- */}
+          <View style={{ gap: t.spacing.lg }}>
+            <Secao>Valor padrão (opcional)</Secao>
+            <Txt variant="caption" tom="muted">
+              Só uma sugestão. Se cada unidade deste local tem um valor, deixe em branco: você informa o valor em cada
+              plantão, e o app lembra o último de cada unidade.
+            </Txt>
+
+            <Segmentado
+              opcoes={[
+                { valor: "plantao", rotulo: "Por plantão" },
+                { valor: "hora", rotulo: "Por hora" },
+              ]}
+              valor={modoValor}
+              onChange={setModoValor}
+            />
+
+            <Campo
+              rotulo={modoValor === "hora" ? "Valor da hora" : "Valor do plantão"}
+              erro={mostra("valorPadrao")}
+              dica="Pode ser mudado em cada plantão."
+            >
+              <CampoDinheiro
+                valor={valorPadrao}
+                onChange={setValorPadrao}
+                erro={Boolean(mostra("valorPadrao"))}
+                sufixo={modoValor === "hora" ? "/ hora" : undefined}
+              />
+            </Campo>
           </View>
 
           {/* --------------------------------- previa --------------------------------- */}
           <PreviaPagamento entrada={entrada} />
 
+          {/* --------------------------------- unidades --------------------------------- */}
+          {editando && <UnidadesDoLocal localId={editando.id} />}
+
           {/* -------------------------------- detalhes -------------------------------- */}
           <View style={{ gap: t.spacing.lg }}>
             <Secao>Detalhes</Secao>
-            <Campo rotulo="Endereço" opcional>
-              <CampoTexto value={endereco} onChangeText={setEndereco} placeholder="Rua, número, bairro" maxLength={300} />
-            </Campo>
             <Campo rotulo="Contato" opcional>
               <CampoTexto value={contato} onChangeText={setContato} placeholder="Telefone ou e-mail do plantão" maxLength={300} />
             </Campo>

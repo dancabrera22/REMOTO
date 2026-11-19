@@ -243,6 +243,84 @@ async function main() {
   check("e os seguintes da escala tambem", await tem("Itaim · Rede D'Or"));
   await foto("unidades-escala");
 
+  /* ------------------------ o local: ordem da tela e unidades ------------------------ */
+
+  const textoAlto = async () => (await texto()).toUpperCase();
+  const abreLocal = async (nome) => {
+    await page.goto(`${BASE}/locais`, { waitUntil: "networkidle", timeout: 120_000 });
+    await tem(nome, 30_000);
+    await page.getByText(nome, { exact: false }).first().click();
+    await tem("Editar local", 30_000);
+    await espera(400);
+  };
+
+  await abreLocal("Rede D'Or");
+  const t1 = await textoAlto();
+  check("a tela do local comeca pela identificacao (nome, apelido, endereco)", t1.indexOf("NOME DO LOCAL") < t1.indexOf("ENDEREÇO") && t1.indexOf("ENDEREÇO") < t1.indexOf("COR NA AGENDA"));
+  check("depois a cor, e so entao como voce recebe", t1.indexOf("COR NA AGENDA") < t1.indexOf("COMO VOCÊ RECEBE"));
+  check("o valor e um padrao OPCIONAL, depois do recebimento", t1.indexOf("COMO VOCÊ RECEBE") < t1.indexOf("VALOR PADRÃO (OPCIONAL)"));
+  check("explica que, com valores por unidade, ele fica em branco", await tem("deixe em branco"));
+  check("os descontos ficam em 'Como voce recebe'", t1.indexOf("COMO VOCÊ RECEBE") < t1.indexOf("DESCONTOS") && t1.indexOf("DESCONTOS") < t1.indexOf("VALOR PADRÃO (OPCIONAL)"));
+  check("existe a secao das unidades do local", t1.includes("UNIDADES DESTE LOCAL"));
+  check("com as unidades usadas e o ultimo valor", (await tem("Central 2")) && (await tem("último valor R$ 1.200,00")) && (await tem("último valor R$ 1.500,00")));
+  await foto("unidades-local");
+  await page.getByText("Unidades deste local", { exact: true }).scrollIntoViewIfNeeded();
+  await foto("unidades-local-unidades");
+
+  // Juntar com uma unidade que ja existe avisa antes.
+  await page.getByRole("button", { name: "Renomear Central 2", exact: true }).click();
+  igual("o campo vem com o nome atual", await page.getByRole("textbox", { name: /^Novo nome da unidade Central 2$/ }).inputValue(), "Central 2");
+  check("sem mexer, nao ha o que salvar", await page.getByRole("button", { name: "Salvar o novo nome" }).isDisabled());
+  await page.getByRole("textbox", { name: /^Novo nome da unidade Central 2$/ }).fill("itaim");
+  check("o nome de OUTRA unidade avisa que vai juntar (com a grafia da que ja existe)", await tem("Já existe “Itaim” neste local"));
+  check("e o botao vira Juntar", (await page.getByRole("button", { name: "Juntar as unidades" }).count()) === 1);
+  await foto("unidades-juntar");
+  await page.getByRole("textbox", { name: /^Novo nome da unidade Central 2$/ }).fill("   ");
+  check("nome vazio: pede o nome", await tem("Digite o novo nome"));
+  check("e nao deixa salvar", await page.getByRole("button", { name: "Salvar o novo nome" }).isDisabled());
+  await page.getByRole("textbox", { name: /^Novo nome da unidade Central 2$/ }).fill("Central");
+  check("nome livre: diz o que vai acontecer (no singular, quando e um so)", await tem("1 plantão de “Central 2” passa a se chamar “Central”"));
+  await page.getByRole("button", { name: "Salvar o novo nome" }).click();
+  check("renomeou na hora e conta o que mudou", await tem("Pronto: 1 plantão atualizado."));
+  check("a lista mostra o nome novo", (await page.getByRole("button", { name: "Renomear Central", exact: true }).count()) === 1);
+  check("e o antigo sumiu", (await page.getByRole("button", { name: "Renomear Central 2", exact: true }).count()) === 0);
+
+  // Renomear a unidade da ESCALA: vale para os plantoes e para o modelo (os proximos).
+  await page.getByRole("button", { name: "Renomear Itaim", exact: true }).click();
+  await page.getByRole("textbox", { name: /^Novo nome da unidade Itaim$/ }).fill("Itaim Faria Lima");
+  await page.getByRole("button", { name: "Salvar o novo nome" }).click();
+  check("renomear a unidade da escala atualiza os plantoes e a escala", (await tem("e 1 escala atualizados")) && (await tem("Pronto: ")));
+  await page.getByRole("button", { name: "Renomear Itaim Faria Lima", exact: true }).waitFor({ timeout: 10_000 });
+
+  // Sem apertar Salvar do local: a agenda ja mostra o nome novo.
+  await agenda();
+  await page.getByRole("button", { name: "Próximo mês" }).click();
+  await espera(600);
+  await page.getByRole("button", { name: "10", exact: true }).click();
+  check("a agenda ja mostra a unidade nova (renomear nao depende de salvar o local)", await tem("Itaim Faria Lima · Rede D'Or"));
+  check("o nome antigo nao aparece mais no mes", !(await texto()).includes("Itaim · Rede D'Or"));
+
+  // E o proximo plantao lancado com essa unidade ja traz o valor da unidade renomeada.
+  await abreNovo(chave(mes, 20));
+  await radio("Rede D'Or").click();
+  check("as sugestoes do formulario tem o nome novo (e so uma Itaim)", (await page.getByRole("radio", { name: /^Unidade Itaim/ }).count()) === 1);
+  await page.getByRole("radio", { name: "Unidade Itaim Faria Lima", exact: true }).click();
+  check("com o valor dela", (await valorCampo("Valor em reais")) === "1.500,00");
+
+  // Juntar de verdade: Central -> Itaim Faria Lima.
+  await abreLocal("Rede D'Or");
+  await page.getByRole("button", { name: "Renomear Central", exact: true }).click();
+  await page.getByRole("textbox", { name: /^Novo nome da unidade Central$/ }).fill("Itaim Faria Lima");
+  check("avisa que as duas viram uma so", await tem("as duas unidades viram uma só"));
+  await page.getByRole("button", { name: "Juntar as unidades" }).click();
+  check("juntou", await tem("Pronto: 1 plantão atualizado."));
+  check("agora ha uma unidade so neste local", (await page.getByRole("button", { name: /^Renomear / }).count()) === 1);
+
+  // Local sem unidades: explica como elas aparecem.
+  await abreLocal("Hospital Vizinho");
+  check("local sem unidades explica como elas aparecem", await tem("Ainda não há unidades"));
+  await foto("unidades-local-vazio");
+
   igual("nenhum erro no console", erros.length, 0);
   if (erros.length) console.log(erros.slice(0, 5).join("\n"));
 
