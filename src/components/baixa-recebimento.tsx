@@ -161,6 +161,7 @@ export function FolhaRecebimento({
               <View style={{ flex: 1, gap: 2 }}>
                 <Txt variant="bodyStrong">
                   {formatDiaSemana(item.inicio)}, {formatData(item.inicio).slice(0, 5)}
+                  {item.unidade ? ` · ${item.unidade}` : ""}
                 </Txt>
                 <Txt variant="caption" tom="muted">
                   {formatHora(item.inicio)} → {formatHora(item.fim)}

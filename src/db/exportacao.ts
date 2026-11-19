@@ -16,6 +16,7 @@ interface Linha {
   pago_em: number | null;
   observacao: string | null;
   serie_id: number | null;
+  unidade: string | null;
   local_nome: string;
   regra_tipo: TipoRegra;
   regra_dia_pagamento: number | null;
@@ -31,7 +32,7 @@ export async function listaPlantoesParaExportar(db: Executor, ano: number | null
   const params = ano === null ? [] : [new Date(ano, 0, 1).getTime(), new Date(ano + 1, 0, 1).getTime()];
 
   const linhas = await db.getAllAsync<Linha>(
-    `SELECT p.inicio, p.fim, p.valor_bruto, p.desconto_percentual, p.status, p.pago_em, p.observacao, p.serie_id,
+    `SELECT p.inicio, p.fim, p.valor_bruto, p.desconto_percentual, p.status, p.pago_em, p.observacao, p.serie_id, p.unidade,
             l.nome AS local_nome, l.regra_tipo, l.regra_dia_pagamento, l.regra_dias_apos,
             l.regra_dia_fechamento, l.regra_meses_adiante, l.ajuste_dia_util
        FROM plantoes p
@@ -45,6 +46,7 @@ export async function listaPlantoesParaExportar(db: Executor, ano: number | null
     inicio: l.inicio,
     fim: l.fim,
     localNome: l.local_nome,
+    unidade: l.unidade,
     status: l.status,
     valorBruto: l.valor_bruto,
     descontoPercentual: l.desconto_percentual,

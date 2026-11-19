@@ -169,6 +169,12 @@ export async function testes() {
     igual("renomear o local atualiza todos os eventos dele", zeros(await sincroniza(ex, cal, AGORA)), "0/4/0/0/0");
     check("com o titulo novo", eventosDe(cal).every((e) => e.titulo === "Plantão · Hospital Renomeado"));
 
+    db.prepare("UPDATE plantoes SET unidade = 'Itaim' WHERE id = ?").run(p1);
+    igual("dar uma unidade a UM plantao atualiza so o evento dele", zeros(await sincroniza(ex, cal, AGORA)), "0/1/0/0/0");
+    check("o titulo ganha a unidade", eventosDe(cal).some((e) => e.titulo === "Plantão · Itaim · Hospital Renomeado"));
+    igual("os outros eventos nao mudam", eventosDe(cal).filter((e) => e.titulo === "Plantão · Hospital Renomeado").length, 3);
+    igual("sem mexer em nada, nada e atualizado", zeros(await sincroniza(ex, cal, AGORA)), "0/0/0/0/0");
+
     db.prepare("UPDATE locais SET endereco = NULL WHERE id = 1").run();
     await sincroniza(ex, cal, AGORA);
     check("tirar o endereco tira o local do evento", eventosDe(cal).every((e) => e.local === null));

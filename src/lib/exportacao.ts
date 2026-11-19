@@ -16,6 +16,8 @@ export interface LinhaExportacao {
   inicio: number;
   fim: number;
   localNome: string;
+  /** Ver `PlantaoInput.unidade`. */
+  unidade?: string | null;
   status: StatusPlantao;
   valorBruto: number;
   descontoPercentual: number;
@@ -32,6 +34,7 @@ export const CABECALHO = [
   "Fim",
   "Horas",
   "Local",
+  "Unidade",
   "Situação",
   "Conta no valor",
   "Valor bruto",
@@ -83,6 +86,7 @@ export function linhaCsv(l: LinhaExportacao): string {
     dataHora(l.fim),
     decimal(minutosEntre(l.inicio, l.fim) / 60),
     l.localNome,
+    l.unidade ?? "",
     ROTULO_STATUS[l.status],
     conta ? "Sim" : "Não",
     dinheiro(l.valorBruto),

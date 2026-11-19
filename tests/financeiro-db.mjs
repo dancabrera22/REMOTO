@@ -82,6 +82,10 @@ export async function testes() {
     igual("traz a data do pagamento", lista.find((p) => p.id === p5).pagoEm, d(2026, 10, 3));
     igual("e nulo quando nao foi pago", x.pagoEm, null);
 
+    igual("a unidade e nula quando o plantao nao tem", x.unidade, null);
+    db.prepare("UPDATE plantoes SET unidade = 'Itaim' WHERE id = ?").run(p1);
+    igual("e vem do banco quando tem", (await listaPlantoesFinanceiro(ex)).find((p) => p.id === p1).unidade, "Itaim");
+
     await arquivaLocal(ex, b, 9);
     igual("local arquivado continua na conta (o dinheiro ainda e devido)", (await listaPlantoesFinanceiro(ex)).length, 3);
   }

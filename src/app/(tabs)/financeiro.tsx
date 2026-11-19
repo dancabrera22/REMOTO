@@ -27,6 +27,7 @@ import {
   previsaoDosMeses,
   resumoDoMesFinanceiro,
   resumoDosAtrasos,
+  unidadesDoGrupo,
   type GrupoRecebimento,
 } from "@/lib/financeiro";
 import { formatBRL } from "@/lib/money";
@@ -342,6 +343,7 @@ function Metrica({ rotulo, valor, tom }: { rotulo: string; valor: number; tom: "
 /** Um pagamento: de que local, quando cai (ou caiu), quantos plantoes e quanto. */
 function CartaoGrupo({ grupo: g, onPress }: { grupo: GrupoRecebimento; onPress: () => void }) {
   const t = useTheme();
+  const unidades = unidadesDoGrupo(g);
   const quando =
     g.estado === "recebido"
       ? `Recebido em ${formatDiaSemana(g.data)}, ${formatData(g.data).slice(0, 5)}`
@@ -360,6 +362,11 @@ function CartaoGrupo({ grupo: g, onPress }: { grupo: GrupoRecebimento; onPress: 
             </Txt>
             <Pill tom={TOM_ESTADO[g.estado]}>{ROTULO_ESTADO[g.estado]}</Pill>
           </View>
+          {unidades.length > 0 && (
+            <Txt variant="label" tom="muted" numberOfLines={2}>
+              {unidades.join(" · ")}
+            </Txt>
+          )}
           <Txt variant="label" tom="muted">
             {quando}
           </Txt>

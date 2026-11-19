@@ -4,6 +4,7 @@ import { excluiPlantao } from "@/db/plantoes";
 import { useBanco } from "@/db/provider";
 import { contaImpacto, excluiDaSerie, ROTULO_ESCOPO, type EscopoSerie, type Impacto } from "@/db/series";
 import { formatDiaSemana, formatData } from "@/lib/datetime";
+import { tituloDoPlantao } from "@/lib/plantoes";
 import { useTheme } from "@/theme";
 import { Folha } from "./folha";
 import { Button, Icone, Txt } from "./ui";
@@ -175,7 +176,7 @@ export function ExcluirPlantao({
   onFechar,
   onExcluido,
 }: {
-  plantao: { id: number; serieId: number | null; inicio: number; local: { nome: string } };
+  plantao: { id: number; serieId: number | null; inicio: number; unidade?: string | null; local: { nome: string } };
   onFechar: () => void;
   onExcluido: () => void;
 }) {
@@ -200,7 +201,7 @@ export function ExcluirPlantao({
       rodape={
         emSerie ? undefined : (
           <Txt variant="label" tom="muted">
-            O plantão de {plantao.local.nome} sai da agenda e das contas. Se ele só não aconteceu, prefira marcar como
+            O plantão de {tituloDoPlantao({ unidade: plantao.unidade, local: { nome: plantao.local.nome } })} sai da agenda e das contas. Se ele só não aconteceu, prefira marcar como
             cancelado ou trocado: o histórico fica.
           </Txt>
         )

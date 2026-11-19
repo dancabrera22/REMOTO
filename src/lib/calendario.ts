@@ -11,7 +11,7 @@
 import { calculaDataRecebimento, type RegraPagamento } from "./pagamento.ts";
 import { fimDoDia, formatData, inicioDoDia, somaDias } from "./datetime.ts";
 import { formatBRL } from "./money.ts";
-import { liquidoDoPlantao } from "./plantoes.ts";
+import { liquidoDoPlantao, tituloDoPlantao } from "./plantoes.ts";
 
 /** Opcoes de lembrete: quantos minutos antes do plantao o calendario avisa. */
 export const LEMBRETES: readonly { id: string; rotulo: string; minutos: number | null }[] = [
@@ -76,6 +76,8 @@ export function leConfig(texto: string | null): ConfigCalendario | null {
 /** O plantao com o necessario do local para virar evento. */
 export interface PlantaoParaCalendario {
   id: number;
+  /** Ver `PlantaoInput.unidade`: entra no titulo do evento ("Plantão · Itaim · Rede D'Or"). */
+  unidade?: string | null;
   inicio: number;
   fim: number;
   valorBruto: number;
@@ -109,7 +111,8 @@ export function montaEvento(p: PlantaoParaCalendario, cfg: Pick<ConfigCalendario
   linhas.push(RODAPE_NOTAS);
 
   return {
-    titulo: `Plantão · ${p.local.nome}`,
+    // Sem o apelido de proposito: sem unidade o titulo continua o de sempre ("Plantão · Rede D'Or").
+    titulo: `Plantão · ${tituloDoPlantao({ unidade: p.unidade, local: { nome: p.local.nome } })}`,
     inicio: p.inicio,
     fim: p.fim,
     local: p.local.endereco && p.local.endereco.trim() ? p.local.endereco.trim() : null,

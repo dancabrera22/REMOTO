@@ -17,7 +17,7 @@
  */
 import { chaveDia, fimDoMes, inicioDoDia, inicioDoMes, somaMeses } from "./datetime.ts";
 import { calculaDataRecebimento, type RegraPagamento } from "./pagamento.ts";
-import { contaNoValor, liquidoDoPlantao, type StatusPlantao } from "./plantoes.ts";
+import { chaveUnidade, contaNoValor, liquidoDoPlantao, normalizaUnidade, type StatusPlantao } from "./plantoes.ts";
 import type { Centavos } from "./money.ts";
 
 export type EstadoRecebimento = "recebido" | "atrasado" | "a_receber" | "previsto";
@@ -36,6 +36,8 @@ const URGENCIA: readonly EstadoRecebimento[] = ["atrasado", "a_receber", "previs
 export interface PlantaoFinanceiro {
   id: number;
   localId: number;
+  /** Ver `PlantaoInput.unidade`. */
+  unidade?: string | null;
   inicio: number;
   fim: number;
   valorBruto: Centavos;
@@ -48,6 +50,7 @@ export interface PlantaoFinanceiro {
 export interface ItemFinanceiro {
   id: number;
   localId: number;
+  unidade: string | null;
   local: { nome: string; apelido: string | null; cor: string };
   inicio: number;
   fim: number;
@@ -78,6 +81,7 @@ export function itensFinanceiros(plantoes: readonly PlantaoFinanceiro[], hoje = 
     itens.push({
       id: p.id,
       localId: p.localId,
+      unidade: normalizaUnidade(p.unidade),
       local: { nome: p.local.nome, apelido: p.local.apelido, cor: p.local.cor },
       inicio: p.inicio,
       fim: p.fim,
@@ -108,6 +112,22 @@ export interface GrupoRecebimento {
   itens: ItemFinanceiro[];
   total: Centavos;
   minutos: number;
+}
+
+/**
+ * As unidades que um recebimento cobre, na ordem em que aparecem (uma vez cada, mesmo que
+ * escritas de outro jeito). Vazio quando nenhum plantao do grupo tem unidade.
+ */
+export function unidadesDoGrupo(g: Pick<GrupoRecebimento, "itens">): string[] {
+  const vistas = new Set<string>();
+  const nomes: string[] = [];
+  for (const i of g.itens) {
+    const chave = chaveUnidade(i.unidade);
+    if (!chave || vistas.has(chave)) continue;
+    vistas.add(chave);
+    nomes.push(i.unidade!);
+  }
+  return nomes;
 }
 
 export function agrupaRecebimentos(itens: readonly ItemFinanceiro[]): GrupoRecebimento[] {

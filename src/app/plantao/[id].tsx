@@ -16,6 +16,7 @@ import {
   listaPlantoesPeriodo,
   marcaPagamento,
   ultimoLocalUsado,
+  unidadesDoLocal,
 } from "@/db/plantoes";
 import { buscaSerie, criaSerie, editaSerie, type EscopoSerie } from "@/db/series";
 import { useBanco, useConsulta, useInvalidar } from "@/db/provider";
@@ -26,6 +27,7 @@ import {
   formatDataCurta,
   formatDiaSemana,
   formatDiaSemanaLongo,
+  formatDuracao,
   inicioDoDia,
   somaDias,
 } from "@/lib/datetime";
@@ -38,15 +40,19 @@ import {
   STATUS_PLANTAO,
   TURNOS_COMUNS,
   contaNoValor,
+  LIMITE_UNIDADE,
+  chaveUnidade,
   descreveHorario,
   formatHoraMin,
   liquidoDoPlantao,
   minutosDoDia,
   montaIntervalo,
+  normalizaUnidade,
   parseHora,
   temErrosPlantao,
+  tituloDoPlantao,
   validaPlantao,
-  valorSugeridoPara,
+  valorParaUnidade,
   type PlantaoComLocal,
   type PlantaoInput,
   type StatusPlantao,
@@ -66,6 +72,7 @@ import { useTheme } from "@/theme";
 
 const ROTULOS_ERRO: Record<string, string> = {
   localId: "local",
+  unidade: "unidade",
   horario: "horário",
   valorBruto: "valor",
   descontoPercentual: "desconto",
@@ -267,6 +274,7 @@ function Formulario({
   );
   const [statusTocado, setStatusTocado] = useState(Boolean(editando));
   const [observacao, setObservacao] = useState(editando?.observacao ?? "");
+  const [unidade, setUnidade] = useState(editando?.unidade ?? "");
 
   const [tentou, setTentou] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -308,7 +316,19 @@ function Formulario({
 
   /* --------------------------- sugestao de valor --------------------------- */
 
-  const sugerido = local && intervalo ? valorSugeridoPara(local, intervalo.inicio, intervalo.fim) : null;
+  // As unidades que a pessoa ja usou neste local, cada uma com o ultimo valor: ao digitar (ou
+  // tocar) o nome de uma, o valor ja vem preenchido.
+  const unidadesLida = useConsulta((ex) => (localId === null ? Promise.resolve([]) : unidadesDoLocal(ex, localId)), [localId]);
+  const unidadesConhecidas = unidadesLida.status === "pronto" ? unidadesLida.dados : [];
+
+  const proposta = useMemo(
+    () =>
+      local && intervalo
+        ? valorParaUnidade({ unidade, inicio: intervalo.inicio, fim: intervalo.fim, sugestoes: unidadesConhecidas, local })
+        : null,
+    [local, intervalo, unidade, unidadesConhecidas],
+  );
+  const sugerido = proposta ? proposta.valor : null;
 
   useEffect(() => {
     if (!valorManual && sugerido !== null) setValor(sugerido);
@@ -340,6 +360,7 @@ function Formulario({
       intervalo && local
         ? {
             localId: local.id,
+            unidade: normalizaUnidade(unidade),
             inicio: intervalo.inicio,
             fim: intervalo.fim,
             valorBruto: valor,
@@ -348,7 +369,7 @@ function Formulario({
             observacao: observacao.trim() || null,
           }
         : null,
-    [intervalo, local, valor, descontoPct, status, observacao],
+    [intervalo, local, unidade, valor, descontoPct, status, observacao],
   );
 
   const validacao = useMemo(() => {
@@ -377,6 +398,7 @@ function Formulario({
     local && horaEntrada !== null && horaSaida !== null
       ? {
           localId: local.id,
+          unidade: normalizaUnidade(unidade),
           inicioMin: horaEntrada,
           fimMin: horaSaida,
           valorBruto: valor,
@@ -399,12 +421,29 @@ function Formulario({
   const mudouModelo =
     Boolean(editando && serie && modelo) &&
     (modelo!.localId !== editando!.localId ||
+      (modelo!.unidade ?? null) !== (editando!.unidade ?? null) ||
       modelo!.inicioMin !== minutosDoDia(editando!.inicio) ||
       modelo!.fimMin !== minutosDoDia(editando!.fim) ||
       modelo!.valorBruto !== editando!.valorBruto ||
       modelo!.descontoPercentual !== editando!.descontoPercentual ||
       (modelo!.observacao ?? null) !== (editando!.observacao ?? null));
   const mudouRegra = Boolean(serie && regra && !mesmaRegra(regra, serie.regra));
+
+  /** O texto que diz de onde veio o valor proposto (so enquanto a pessoa nao o digitou). */
+  function dicaDoValor(): string | undefined {
+    if (valorManual || !local || !proposta) return undefined;
+    const nome = normalizaUnidade(unidade);
+    if (proposta.origem === "unidade") {
+      return `Último valor de ${nome}${proposta.minutos ? ` (plantão de ${formatDuracao(proposta.minutos)})` : ""}. Pode mudar.`;
+    }
+    if (proposta.origem === "unidade_outra_duracao") {
+      return `Último valor de ${nome}, mas era um plantão de ${formatDuracao(proposta.minutos ?? 0)}. Confira: esta duração é outra.`;
+    }
+    if (proposta.origem === "local") {
+      return `Sugerido pelo local: ${local.modoValor === "hora" ? "valor da hora × duração" : "valor do plantão"}.`;
+    }
+    return "Informe o valor deste plantão: o local não tem um valor padrão.";
+  }
 
   async function salvar() {
     setTentou(true);
@@ -495,7 +534,7 @@ function Formulario({
               Cadastre um local primeiro
             </Txt>
             <Txt variant="label" tom="muted" centro>
-              O plantão precisa de um local: é dele que vêm o valor, os descontos e a data em que você recebe.
+              O local é a rede ou o hospital: nome, cor e como você recebe (prazo e descontos). O valor e a unidade você informa em cada plantão.
             </Txt>
             <Button icone="plus" onPress={() => router.replace("/local/novo")}>
               Cadastrar local
@@ -562,6 +601,41 @@ function Formulario({
               <Txt variant="caption" tom="warning">
                 Este local está arquivado.
               </Txt>
+            )}
+          </Campo>
+
+          {/* --------------------------------- unidade --------------------------------- */}
+          <Campo
+            rotulo="Unidade"
+            opcional
+            erro={mostra("unidade")}
+            dica={
+              unidadesConhecidas.length === 0
+                ? 'O nome do lugar dentro do local, como "Itaim" na Rede D\'Or. Cada unidade pode ter o seu valor.'
+                : undefined
+            }
+          >
+            <CampoTexto
+              value={unidade}
+              onChangeText={setUnidade}
+              placeholder={local ? `Ex.: Itaim, Central (dentro de ${local.nome})` : "Ex.: Itaim, Central"}
+              maxLength={LIMITE_UNIDADE + 20}
+              autoCapitalize="words"
+              accessibilityLabel="Unidade"
+              erro={Boolean(mostra("unidade"))}
+            />
+            {unidadesConhecidas.length > 0 && (
+              <View role="radiogroup" aria-label="Unidades usadas neste local" style={{ flexDirection: "row", flexWrap: "wrap", gap: t.spacing.sm }}>
+                {unidadesConhecidas.slice(0, 8).map((u) => (
+                  <Chip
+                    key={u.chave}
+                    rotulo={u.unidade}
+                    rotuloAcessivel={`Unidade ${u.unidade}`}
+                    ativo={chaveUnidade(unidade) === u.chave}
+                    onPress={() => setUnidade(chaveUnidade(unidade) === u.chave ? "" : u.unidade)}
+                  />
+                ))}
+              </View>
             )}
           </Campo>
 
@@ -711,11 +785,7 @@ function Formulario({
             <Campo
               rotulo="Valor bruto"
               erro={mostra("valorBruto")}
-              dica={
-                local && !valorManual
-                  ? `Sugerido pelo local: ${local.modoValor === "hora" ? "valor da hora × duração" : "valor do plantão"}.`
-                  : undefined
-              }
+              dica={dicaDoValor()}
             >
               <CampoDinheiro
                 valor={valor}
@@ -734,7 +804,9 @@ function Formulario({
                   accessibilityRole="button"
                 >
                   <Txt variant="label" tom="primary" style={{ fontWeight: "600" }}>
-                    Usar o valor do local: {formatBRL(sugerido)}
+                    {proposta && (proposta.origem === "unidade" || proposta.origem === "unidade_outra_duracao")
+                      ? `Usar o último valor de ${normalizaUnidade(unidade)}: ${formatBRL(sugerido)}`
+                      : `Usar o valor do local: ${formatBRL(sugerido)}`}
                   </Txt>
                 </Pressable>
               )}
@@ -820,7 +892,7 @@ function Formulario({
                 <View style={{ flexDirection: "row", alignItems: "center", gap: t.spacing.sm }}>
                   <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: local.cor }} />
                   <Txt variant="bodyStrong" style={{ flex: 1 }} numberOfLines={1}>
-                    {local.nome}
+                    {tituloDoPlantao({ unidade, local })}
                   </Txt>
                   <Pill tom={status === "realizado" ? "success" : status === "agendado" ? "primary" : "warning"}>
                     {ROTULO_STATUS[status]}

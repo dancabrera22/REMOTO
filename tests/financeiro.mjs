@@ -7,7 +7,7 @@
  *   C  paga dia 20 do mes seguinte (cai em feriado: 20/11/2026 e Consciencia Negra)
  * Todo plantao vale R$ 1.000,00 bruto e dura 12 h.
  */
-import { agrupaRecebimentos, itensAtrasados, itensDoMes, itensFinanceiros, previsaoDosMeses, resumoDoMesFinanceiro, resumoDosAtrasos } from "../src/lib/financeiro.ts";
+import { agrupaRecebimentos, itensAtrasados, itensDoMes, itensFinanceiros, previsaoDosMeses, resumoDoMesFinanceiro, resumoDosAtrasos, unidadesDoGrupo } from "../src/lib/financeiro.ts";
 import { instante } from "../src/lib/datetime.ts";
 import { check, igual } from "./helpers.mjs";
 
@@ -126,6 +126,27 @@ export function testes() {
   const empate = agrupaRecebimentos(itensFinanceiros([plantao("C", [2026, 10, 5]), plantao("A", [2026, 10, 5])], HOJE).map((i) => ({ ...i, data: d(2026, 11, 23) })));
   igual("mesma data, locais diferentes: alfabetico", empate.map((g) => g.local.nome).join(), "Clinica C,Hospital A");
   igual("item sem data nao entra em grupo nenhum", agrupaRecebimentos([semRegra]).length, 0);
+
+  /* ---- unidades: o recebimento e da rede; o grupo mostra de que unidades ele e ---- */
+
+  {
+    const itens = itensFinanceiros(
+      [
+        plantao("A", [2026, 10, 5], { unidade: "Itaim" }),
+        plantao("A", [2026, 10, 6], { unidade: "  Central " }),
+        plantao("A", [2026, 10, 7], { unidade: "itaim" }), // mesma unidade, outra grafia
+        plantao("A", [2026, 10, 8]), // sem unidade
+      ],
+      HOJE,
+    );
+    igual("o item guarda a unidade normalizada", itens[1].unidade, "Central");
+    igual("e nulo sem unidade", itens[3].unidade, null);
+    const g = agrupaRecebimentos(itens);
+    igual("as unidades da rede pagas no mesmo dia continuam UM recebimento", g.length, 1);
+    igual("com a soma de todas", g[0].itens.length, 4);
+    igual("o grupo lista as unidades, uma vez cada, na ordem", unidadesDoGrupo(g[0]).join(","), "Itaim,Central");
+    igual("grupo sem nenhuma unidade: lista vazia", unidadesDoGrupo(agrupaRecebimentos(itensFinanceiros([plantao("A", [2026, 10, 5])], HOJE))[0]).length, 0);
+  }
 
   /* ------------------------------------ somas ------------------------------------ */
 

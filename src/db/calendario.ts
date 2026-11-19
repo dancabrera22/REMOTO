@@ -101,6 +101,7 @@ interface LinhaPlantao {
   valor_bruto: number;
   desconto_percentual: number;
   observacao: string | null;
+  unidade: string | null;
   local_nome: string;
   local_apelido: string | null;
   local_endereco: string | null;
@@ -115,7 +116,7 @@ interface LinhaPlantao {
 /** Plantoes que valem um evento: agendados e realizados que comecam no periodo. */
 export async function listaPlantoesParaCalendario(db: Executor, de: number, ate: number): Promise<PlantaoParaCalendario[]> {
   const linhas = await db.getAllAsync<LinhaPlantao>(
-    `SELECT p.id, p.inicio, p.fim, p.valor_bruto, p.desconto_percentual, p.observacao,
+    `SELECT p.id, p.inicio, p.fim, p.valor_bruto, p.desconto_percentual, p.observacao, p.unidade,
             l.nome AS local_nome, l.apelido AS local_apelido, l.endereco AS local_endereco,
             l.regra_tipo, l.regra_dia_pagamento, l.regra_dias_apos,
             l.regra_dia_fechamento, l.regra_meses_adiante, l.ajuste_dia_util
@@ -132,6 +133,7 @@ export async function listaPlantoesParaCalendario(db: Executor, de: number, ate:
     valorBruto: l.valor_bruto,
     descontoPercentual: l.desconto_percentual,
     observacao: l.observacao,
+    unidade: l.unidade,
     local: {
       nome: l.local_nome,
       apelido: l.local_apelido,

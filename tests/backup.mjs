@@ -15,18 +15,18 @@ const local = (extra = {}) => ({
 });
 const serie = (extra = {}) => ({
   id: 1, local_id: 1, tipo: "semanal", dias_semana: 4, cada: 1, dia_do_mes: null, inicio_dia: 100, fim_dia: null, inicio_min: 420, fim_min: 1140,
-  valor_bruto: 120000, desconto_percentual: 0, observacao: null, gerado_ate: 200, criado_em: 1, atualizado_em: 1, ...extra,
+  valor_bruto: 120000, desconto_percentual: 0, observacao: null, unidade: "Itaim", gerado_ate: 200, criado_em: 1, atualizado_em: 1, ...extra,
 });
 const plantao = (extra = {}) => ({
-  id: 1, local_id: 1, inicio: 1000, fim: 5000, valor_bruto: 120000, desconto_percentual: 0, status: "realizado", observacao: null,
+  id: 1, local_id: 1, inicio: 1000, fim: 5000, valor_bruto: 120000, desconto_percentual: 0, status: "realizado", observacao: null, unidade: null,
   criado_em: 1, atualizado_em: 1, serie_id: null, ocorrencia_dia: null, excecao: 0, pago_em: null, ...extra,
 });
 
 const dados = (extra = {}) => ({
   locais: [local()], series: [serie()], series_puladas: [{ serie_id: 1, ocorrencia_dia: 300 }],
-  plantoes: [plantao(), plantao({ id: 2, serie_id: 1, ocorrencia_dia: 100, status: "agendado" })], ...extra,
+  plantoes: [plantao(), plantao({ id: 2, serie_id: 1, ocorrencia_dia: 100, status: "agendado", unidade: "Itaim" })], ...extra,
 });
-const arquivo = (d = dados(), extra = {}) => ({ formato: FORMATO, versaoFormato: 1, esquema: 4, app: "1.0.0", criadoEm: 123, dados: d, ...extra });
+const arquivo = (d = dados(), extra = {}) => ({ formato: FORMATO, versaoFormato: VERSAO_FORMATO, esquema: 4, app: "1.0.0", criadoEm: 123, dados: d, ...extra });
 const le = (obj) => interpretaBackup(typeof obj === "string" ? obj : JSON.stringify(obj));
 const erro = (obj) => { const r = le(obj); return r.ok ? null : r.erro; };
 
@@ -44,6 +44,32 @@ export function testes() {
   igual("ida e volta sem perder nada", JSON.stringify(r.backup.dados), JSON.stringify(dados()));
   igual("o formato e a versao", `${b.formato}/${b.versaoFormato}`, `${FORMATO}/${VERSAO_FORMATO}`);
   igual("resumoDoBackup bate com o da leitura", JSON.stringify(resumoDoBackup(b)), JSON.stringify(r.resumo));
+
+  /* ----------------------- unidade e a versao 2 do formato ----------------------- */
+
+  igual("o formato atual e a versao 2 (a que traz a unidade)", VERSAO_FORMATO, 2);
+  igual("a unidade vai e volta no plantao e na escala", `${r.backup.dados.plantoes[1].unidade}/${r.backup.dados.series[0].unidade}`, "Itaim/Itaim");
+
+  // Um arquivo da versao 1 (de antes das unidades) continua restaurando, sem unidade.
+  {
+    const semUnidade = (l) => { const { unidade, ...resto } = l; return resto; };
+    const v1 = arquivo(dados({ series: [semUnidade(serie())], plantoes: [semUnidade(plantao()), semUnidade(plantao({ id: 2, serie_id: 1, ocorrencia_dia: 100, status: "agendado" }))] }), { versaoFormato: 1, esquema: 4 });
+    const lido = le(v1);
+    check("um backup da versao 1 (sem unidade) ainda e aceito", lido.ok, lido.ok ? "" : lido.erro);
+    igual("e entra sem unidade", `${lido.backup.dados.plantoes[0].unidade}/${lido.backup.dados.plantoes[1].unidade}/${lido.backup.dados.series[0].unidade}`, "null/null/null");
+    igual("mantendo a versao do arquivo", lido.backup.versaoFormato, 1);
+  }
+  check("uma versao 3, que este app nao conhece, e recusada com aviso", /versão mais nova do app/.test(erro(arquivo(dados(), { versaoFormato: 3 }))));
+
+  // Arquivo editado a mao: a unidade entra do mesmo jeito que o formulario a grava.
+  {
+    const l = le(arquivo(dados({ plantoes: [plantao({ unidade: "  Itaim    Central  " }), plantao({ id: 2, unidade: "x".repeat(100) }), plantao({ id: 3, unidade: "   " })] })));
+    check("unidade com espacos sobrando e aceita", l.ok);
+    igual("e normalizada", l.backup.dados.plantoes[0].unidade, "Itaim Central");
+    igual("unidade comprida demais e cortada em 60", l.backup.dados.plantoes[1].unidade.length, 60);
+    igual("so espacos vira sem unidade", l.backup.dados.plantoes[2].unidade, null);
+  }
+  check("unidade que nao e texto e recusada", /valor inválido/.test(erro(arquivo(dados({ plantoes: [plantao({ unidade: 42 })] })))));
 
   check("backup vazio e valido", le(arquivo({ locais: [], series: [], series_puladas: [], plantoes: [] })).ok);
   check("so locais, sem plantoes, e valido", le(arquivo({ locais: [local()], series: [], series_puladas: [], plantoes: [] })).ok);
@@ -142,9 +168,9 @@ export function testes() {
 
   /* ------------------------------------- colunas ------------------------------------- */
 
-  igual("as colunas do plantao sao as do banco (14)", TABELAS.plantoes.length, 14);
+  igual("as colunas do plantao sao as do banco (15)", TABELAS.plantoes.length, 15);
   igual("as de local (19)", TABELAS.locais.length, 19);
-  igual("as de escala (16)", TABELAS.series.length, 16);
+  igual("as de escala (17)", TABELAS.series.length, 17);
   check("nenhuma coluna repetida", Object.values(TABELAS).every((cols) => new Set(cols.map((c) => c.nome)).size === cols.length));
 
   /* --------------------------------------- nome --------------------------------------- */

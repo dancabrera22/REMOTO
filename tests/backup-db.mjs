@@ -32,7 +32,7 @@ async function populado() {
   const { serieId } = await criaSerie(
     ex,
     {
-      localId: a, inicioMin: 420, fimMin: 1140, valorBruto: 120000, descontoPercentual: 11.5, observacao: "escala fixa",
+      localId: a, unidade: "Itaim", inicioMin: 420, fimMin: 1140, valorBruto: 120000, descontoPercentual: 11.5, observacao: "escala fixa",
       regra: { tipo: "semanal", diasSemana: 1 << 2, cada: 1, diaDoMes: null, inicioDia: dia(2), fimDia: null },
     },
     AGORA,
@@ -44,7 +44,7 @@ async function populado() {
   await mudaStatusPlantao(ex, daSerie[3].id, "realizado", AGORA);
   await marcaPagamento(ex, daSerie[4].id, dia(1), AGORA); // pago
 
-  const avulso = await criaPlantao(ex, { localId: b, inicio: dia(-5), fim: dia(-5) + 12 * 3600e3, valorBruto: 50000, descontoPercentual: 0, status: "realizado", observacao: "Troca ✓" }, AGORA);
+  const avulso = await criaPlantao(ex, { localId: b, unidade: "Central", inicio: dia(-5), fim: dia(-5) + 12 * 3600e3, valorBruto: 50000, descontoPercentual: 0, status: "realizado", observacao: "Troca ✓" }, AGORA);
   await marcaPagamento(ex, avulso, dia(-1), AGORA);
   await criaPlantao(ex, { localId: b, inicio: dia(-9), fim: dia(-9) + 6 * 3600e3, valorBruto: 1, descontoPercentual: 0, status: "cancelado", observacao: null }, AGORA);
   await criaPlantao(ex, { localId: c, inicio: dia(-30), fim: dia(-30) + 3600e3, valorBruto: 7, descontoPercentual: 100, status: "trocado", observacao: null }, AGORA);
@@ -87,7 +87,8 @@ export async function testes() {
   check("inclusive cancelado, trocado e pago", ["cancelado", "trocado"].every((st) => backup.dados.plantoes.some((p) => p.status === st)) && backup.dados.plantoes.some((p) => p.pago_em !== null));
   check("e o de escala ajustado a mao", backup.dados.plantoes.some((p) => p.excecao === 1 && p.serie_id !== null));
   igual("data de criacao", backup.criadoEm, AGORA);
-  check("so as colunas do formato (sem extras)", Object.keys(backup.dados.plantoes[0]).join() === "id,local_id,inicio,fim,valor_bruto,desconto_percentual,status,observacao,criado_em,atualizado_em,serie_id,ocorrencia_dia,excecao,pago_em");
+  check("so as colunas do formato (sem extras)", Object.keys(backup.dados.plantoes[0]).join() === "id,local_id,inicio,fim,valor_bruto,desconto_percentual,status,observacao,unidade,criado_em,atualizado_em,serie_id,ocorrencia_dia,excecao,pago_em");
+  check("o backup leva as unidades (da escala e do avulso)", backup.dados.plantoes.some((p) => p.unidade === "Itaim") && backup.dados.plantoes.some((p) => p.unidade === "Central") && backup.dados.series[0].unidade === "Itaim");
   check("local arquivado vai junto", backup.dados.locais.some((l) => l.arquivado_em !== null));
   check("o desconto fracionado nao perde precisao", backup.dados.locais.some((l) => l.desconto_percentual === 11.5));
 

@@ -51,14 +51,22 @@ export async function testes() {
   /* ------------------------------------ linha ------------------------------------ */
 
   const cab = CABECALHO.join(";");
-  igual("o cabecalho tem 15 colunas", CABECALHO.length, 15);
-  igual("e esta na ordem prometida", cab, "Data;Dia;Início;Fim;Horas;Local;Situação;Conta no valor;Valor bruto;Desconto (%);Valor líquido;Recebimento previsto;Pago em;Observação;Escala");
+  igual("o cabecalho tem 16 colunas", CABECALHO.length, 16);
+  igual("e esta na ordem prometida", cab, "Data;Dia;Início;Fim;Horas;Local;Unidade;Situação;Conta no valor;Valor bruto;Desconto (%);Valor líquido;Recebimento previsto;Pago em;Observação;Escala");
 
   igual(
     "uma linha completa, tal qual a planilha vai ver",
     linhaCsv(linha({ observacao: "Troca", emEscala: true })),
-    "20/11/2026;sex;20/11/2026 07:00;20/11/2026 19:00;12;Hospital Central;Realizado;Sim;1200,00;10;1080,00;10/12/2026;;Troca;Sim",
+    "20/11/2026;sex;20/11/2026 07:00;20/11/2026 19:00;12;Hospital Central;;Realizado;Sim;1200,00;10;1080,00;10/12/2026;;Troca;Sim",
   );
+  igual(
+    "com unidade, ela vem logo depois do local",
+    linhaCsv(linha({ localNome: "Rede D'Or", unidade: "Itaim", observacao: "Troca", emEscala: true })),
+    "20/11/2026;sex;20/11/2026 07:00;20/11/2026 19:00;12;Rede D'Or;Itaim;Realizado;Sim;1200,00;10;1080,00;10/12/2026;;Troca;Sim",
+  );
+  check("unidade que parece formula fica inofensiva", linhaCsv(linha({ unidade: "=1+1" })).includes(";'=1+1;"));
+  check("unidade com ponto e virgula fica entre aspas (nao quebra a coluna)", linhaCsv(linha({ unidade: "A;B" })).includes(';"A;B";'));
+  igual("e o numero de campos continua batendo", linhaCsv(linha({ unidade: "A;B" })).split(";").length - 1, CABECALHO.length);
   igual("o numero de campos bate com o cabecalho", linhaCsv(linha()).split(";").length, CABECALHO.length);
 
   const noturno = linha({ inicio: instante(2026, 10, 20, 19), fim: instante(2026, 10, 21, 7) });
@@ -119,6 +127,7 @@ export async function testes() {
   db.prepare("INSERT INTO series (local_id, tipo, dias_semana, cada, inicio_dia, inicio_min, fim_min, valor_bruto, criado_em, atualizado_em) VALUES (?, 'semanal', 4, 1, 1, 420, 1140, 0, 1, 1)").run(a);
   insere(a, instante(2025, 11, 31, 7)); // 31/12/2025
   insere(a, instante(2026, 0, 1, 7)); // 01/01/2026 (segundo exato do ano novo, local)
+  db.prepare("UPDATE plantoes SET unidade = 'Itaim' WHERE inicio = ?").run(instante(2026, 0, 1, 7));
   insere(b, instante(2026, 5, 10, 7), { status: "cancelado" });
   insere(a, instante(2026, 11, 31, 19), { obs: "ultimo do ano", pagoEm: instante(2027, 0, 5) });
   insere(a, instante(2027, 0, 1, 7), { status: "agendado", serie: 1, ocorrencia: 5 });
@@ -133,6 +142,9 @@ export async function testes() {
   igual("2025 tem um", (await listaPlantoesParaExportar(ex, 2025)).length, 1);
   igual("ano sem plantoes", (await listaPlantoesParaExportar(ex, 2020)).length, 0);
   igual("traz o nome do local", de2026[1].localNome, "UPA B");
+  igual("traz a unidade (quando ha)", de2026[0].unidade, "Itaim");
+  igual("e nula quando nao ha", de2026[1].unidade, null);
+  check("a unidade chega a planilha, na coluna certa", montaCsv(de2026).split("\r\n")[1].split(";")[6] === "Itaim");
   igual("traz a situacao", de2026[1].status, "cancelado");
   igual("traz o pagamento e a observacao", `${de2026[2].pagoEm === instante(2027, 0, 5)}/${de2026[2].observacao}`, "true/ultimo do ano");
   igual("e se e de escala", `${tudo[0].emEscala}/${tudo[4].emEscala}`, "false/true");

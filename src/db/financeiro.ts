@@ -10,6 +10,7 @@ import type { Executor } from "./locais.ts";
 interface Linha {
   id: number;
   local_id: number;
+  unidade: string | null;
   inicio: number;
   fim: number;
   valor_bruto: number;
@@ -36,7 +37,7 @@ interface Linha {
  */
 export async function listaPlantoesFinanceiro(db: Executor): Promise<PlantaoFinanceiro[]> {
   const linhas = await db.getAllAsync<Linha>(
-    `SELECT p.id, p.local_id, p.inicio, p.fim, p.valor_bruto, p.desconto_percentual,
+    `SELECT p.id, p.local_id, p.unidade, p.inicio, p.fim, p.valor_bruto, p.desconto_percentual,
             p.status, p.pago_em,
             l.nome AS local_nome, l.apelido AS local_apelido, l.cor AS local_cor,
             l.regra_tipo, l.regra_dia_pagamento, l.regra_dias_apos,
@@ -50,6 +51,7 @@ export async function listaPlantoesFinanceiro(db: Executor): Promise<PlantaoFina
   return linhas.map((l) => ({
     id: l.id,
     localId: l.local_id,
+    unidade: l.unidade,
     inicio: l.inicio,
     fim: l.fim,
     valorBruto: l.valor_bruto,

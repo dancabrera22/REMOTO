@@ -16,8 +16,17 @@
  * com o calendario se acerta sozinha.
  */
 
+import { normalizaUnidade } from "./plantoes.ts";
+
 export const FORMATO = "meu-plantao-backup";
-export const VERSAO_FORMATO = 1;
+/**
+ * Versao do formato do arquivo.
+ *   1  a primeira.
+ *   2  plantoes e escalas ganharam `unidade` (o nome do lugar dentro do local).
+ * Um arquivo da versao 1 continua restaurando (a coluna nova e opcional e fica sem unidade);
+ * um da versao 2 num app que so conhece a 1 e recusado com aviso, em vez de perder as unidades.
+ */
+export const VERSAO_FORMATO = 2;
 
 export type TipoColuna = "inteiro" | "numero" | "texto";
 
@@ -75,6 +84,7 @@ export const TABELAS: Record<NomeTabela, readonly Coluna[]> = {
     i("valor_bruto", { padrao: 0 }),
     n("desconto_percentual", { padrao: 0 }),
     t("observacao", { nulo: true }),
+    t("unidade", { nulo: true }),
     i("gerado_ate", { padrao: 0 }),
     i("criado_em"),
     i("atualizado_em"),
@@ -89,6 +99,7 @@ export const TABELAS: Record<NomeTabela, readonly Coluna[]> = {
     n("desconto_percentual", { padrao: 0 }),
     t("status", { padrao: "agendado" }),
     t("observacao", { nulo: true }),
+    t("unidade", { nulo: true }),
     i("criado_em"),
     i("atualizado_em"),
     i("serie_id", { nulo: true }),
@@ -163,6 +174,9 @@ function normalizaLinha(tabela: NomeTabela, bruta: unknown, posicao: number): { 
     if (!certo) return { erro: `${onde}: o campo “${c.nome}” está com um valor inválido.` };
     linha[c.nome] = v as number | string;
   }
+  // Um arquivo editado a mao pode trazer a unidade com espacos sobrando ou comprida demais:
+  // entra do mesmo jeito que o formulario a grava.
+  if ("unidade" in linha) linha.unidade = normalizaUnidade(linha.unidade as string | null);
   return { linha };
 }
 

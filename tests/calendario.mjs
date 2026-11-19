@@ -23,6 +23,10 @@ export function testes() {
 
   const e = montaEvento(plantao(), cfg());
   igual("titulo: Plantao e o local", e.titulo, "Plantão · Hospital Central");
+  igual("com unidade: Plantao, unidade e local", montaEvento(plantao({ unidade: "Itaim", local: { ...plantao().local, nome: "Rede D'Or" } }), cfg()).titulo, "Plantão · Itaim · Rede D'Or");
+  igual("a unidade e normalizada no titulo", montaEvento(plantao({ unidade: "  Itaim   Central " }), cfg()).titulo, "Plantão · Itaim Central · Hospital Central");
+  igual("so espacos: titulo de sempre (o apelido do local NAO entra: os eventos antigos nao mudam)", montaEvento(plantao({ unidade: "  " }), cfg()).titulo, "Plantão · Hospital Central");
+  check("plantao com outra unidade tem outra assinatura (o evento no calendario e atualizado)", assinaturaDoEvento("cal", montaEvento(plantao({ unidade: "Itaim" }), cfg())) !== assinaturaDoEvento("cal", montaEvento(plantao({ unidade: "Central" }), cfg())));
   igual("o evento vai do inicio ao fim do plantao", `${e.inicio === plantao().inicio}/${e.fim === plantao().fim}`, "true/true");
   igual("o endereco do local vira o local do evento", e.local, "Av. Brasil, 100");
   igual("o lembrete acompanha a configuracao", e.lembreteMin, 60);

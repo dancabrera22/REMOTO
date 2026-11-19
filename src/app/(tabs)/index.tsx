@@ -36,6 +36,7 @@ import {
   marcadoresDoMes,
   precisaConfirmar,
   resumoDoMes,
+  tituloDoPlantao,
   type PlantaoComLocal,
   type StatusPlantao,
 } from "@/lib/plantoes";
@@ -172,7 +173,7 @@ export default function Agenda() {
                 titulo={semLocais ? "Cadastre um local primeiro" : "Nenhum plantão neste dia"}
                 descricao={
                   semLocais
-                    ? "O valor, os descontos e a data em que você recebe vêm do local."
+                    ? "O local é a rede ou o hospital: nome, cor e como você recebe. O valor e a unidade ficam em cada plantão."
                     : "Toque em Novo — ou segure o dia no calendário — para lançar um plantão nesta data."
                 }
               >
@@ -188,7 +189,7 @@ export default function Agenda() {
               <Deslizavel
                 key={p.id}
                 onExcluir={() => setExcluindo(p)}
-                rotuloAcessivel={`Excluir plantão de ${p.local.nome}`}
+                rotuloAcessivel={`Excluir plantão de ${tituloDoPlantao({ unidade: p.unidade, local: { nome: p.local.nome } })}`}
               >
                 <CartaoPlantao
                   plantao={p}
@@ -332,7 +333,7 @@ function CartaoPlantao({ plantao: p, onPress }: { plantao: PlantaoComLocal; onPr
         <View style={{ flex: 1, padding: t.spacing.lg, gap: t.spacing.sm }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: t.spacing.sm }}>
             <Txt variant="bodyStrong" numberOfLines={1} style={{ flexShrink: 1 }}>
-              {p.local.apelido ? `${p.local.nome} · ${p.local.apelido}` : p.local.nome}
+              {tituloDoPlantao(p)}
             </Txt>
             {p.serieId !== null && (
               <View accessibilityLabel="Plantão de escala (se repete)" accessible>
