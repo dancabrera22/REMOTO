@@ -63,7 +63,8 @@ async function main() {
   const tem = async (trecho, ms = 15_000) => Boolean(await ate(async () => (await texto()).includes(trecho), ms));
   const some = async (trecho, ms = 8_000) => Boolean(await ate(async () => !(await texto()).includes(trecho), ms));
   const foto = (nome) => page.screenshot({ path: path.join(SAIDA, `${nome}.png`) });
-  const radio = (nome) => page.getByRole("radio", { name: nome, exact: true });
+  // Os lembretes do app tambem tem "1 h antes": a folha do calendario e a ultima na tela.
+  const radio = (nome) => page.getByRole("radio", { name: nome, exact: true }).last();
   const botao = (nome) => page.getByText(nome, { exact: true }).last();
 
   /** Eventos do calendario falso, ordenados. */

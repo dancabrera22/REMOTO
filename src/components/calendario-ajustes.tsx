@@ -359,7 +359,7 @@ function FolhaEscolha({
       {permissao === "negada" && (
         <View style={{ gap: t.spacing.md }}>
           <Txt variant="label" tom="danger">
-            O acesso ao calendário está bloqueado. Libere em Configurações do aplicativo → Permissões → Calendário.
+            O acesso ao calendário está bloqueado. Libere em Configurações do aplicativo → Permissões → Agenda (em alguns celulares o nome é Calendário).
           </Txt>
           <Button variant="secondary" icone="cog-outline" onPress={() => void Linking.openSettings()}>
             Abrir configurações do app

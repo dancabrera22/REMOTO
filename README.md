@@ -13,8 +13,17 @@ celular.
 > **seus dados**: *Ajustes → Seus dados* gera um **backup** em arquivo (e restaura,
 > conferindo tudo antes de tocar no que você tem), exporta uma **planilha** que abre
 > direto no Excel em português, e você escolhe o tema **claro, escuro ou do celular**.
-> O app só pede acesso ao **calendário** — nada de internet. Para publicar na Play
+> O app só pede acesso ao **calendário** e às **notificações** — nada de internet. Para publicar na Play
 > Store, veja o [PUBLICAR.md](PUBLICAR.md).
+>
+> **Lembretes do app (1.3).** *Ajustes → Lembretes do app* faz o próprio Meu Plantão
+> avisar antes de cada plantão (30 min, 1 h, 2 h ou 1 dia antes), com o app fechado:
+> «Plantão em 1 h — Itaim · Rede D'Or», com dia, horário e endereço — **sem valores**,
+> já que o aviso aparece na tela bloqueada. Agenda os próximos 45 dias (no máximo 150
+> avisos) e se renova toda vez que você abre o app ou muda um plantão. Há um botão
+> «Enviar notificação de teste agora». Se o calendário também avisa, o app oferece tirar
+> o lembrete de lá, para não tocar duas vezes. O estado das notificações se confere em
+> *Configurações do Android → Apps → Meu Plantão → Notificações*.
 >
 > **Unidades (1.1).** O *local* é a rede ou o hospital — nome e cor, e como você recebe
 > (prazo e desconto). A *unidade* é o nome que você dá ao plantão dentro dele («Itaim»,
@@ -171,6 +180,8 @@ O que a suíte rápida cobre:
 | `financeiro-db.mjs` | a consulta com a regra do local, a baixa em lote (não paga cancelado, não sobrescreve quem já recebeu, mil de uma vez) e **falha injetada em cada lote** |
 | `calendario.mjs` | o que um plantão vira como evento (título, local, notas, lembrete), quando o valor aparece (só se pedido), a assinatura que decide se há o que atualizar, a janela de datas e a leitura da configuração (inclusive texto estragado) |
 | `calendario-db.mjs` | a sincronização contra um **calendário falso**: criar, atualizar só o que mudou, remover, refazer o que a pessoa apagou no calendário, trocar de calendário, desconectar com e sem remover, nunca duas rodadas ao mesmo tempo — e **falha injetada em cada escrita** (a rodada seguinte sempre termina o serviço, sem duplicar) |
+| `lembretes.mjs` | o que avisar: quais plantões ganham aviso (só agendados, dentro de 45 dias, aviso ainda no futuro, teto de 150, os mais próximos primeiro), o texto (sem valor), o identificador que muda quando o texto muda e a diferença entre o agendado e o desejado |
+| `lembretes-db.mjs` | a sincronização contra **notificações falsas**: criar, trocar, cancelar só o que é do app, permissão negada, desligar, nunca duas rodadas ao mesmo tempo e **falha injetada em cada escrita** (a rodada seguinte termina o serviço, sem duplicar) |
 | `backup.mjs` | o arquivo de backup: formato versionado, e a **validação** — o que for estranho (JSON quebrado, versão futura, referência a local que não existe, escala duplicada, valor negativo, fim antes do início…) é recusado com a explicação, antes de tocar em qualquer dado |
 | `backup-db.mjs` | fazer e restaurar backup no SQLite: tudo ou nada (**falha injetada em cada escrita** — o que você tinha continua lá), restaurar em cima de dados e ida-e-volta idêntica, mais de mil plantões (o SQLite limita 999 variáveis por comando), coluna de versão futura que não vaza |
 | `exportacao.mjs` | a planilha: `;` e vírgula decimal (Excel em português), BOM, acentos, aspas e quebra de linha nas observações, proteção contra fórmula (`=`, `+`, `-`, `@` no começo de uma célula), filtro por ano |

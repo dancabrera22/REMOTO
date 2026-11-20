@@ -2,7 +2,7 @@
   "expo": {
     "name": "Meu Plantão",
     "slug": "meu-plantao",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "meuplantao",
@@ -23,6 +23,9 @@
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.VIBRATE"
+      ],
+      "permissions": [
+        "android.permission.USE_EXACT_ALARM"
       ]
     },
     "web": {
@@ -44,6 +47,13 @@
           "backgroundColor": "#0E4F4A",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 84
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/android-icon-monochrome.png",
+          "color": "#0E4F4A"
         }
       ],
       "expo-sharing"

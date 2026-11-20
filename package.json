@@ -1,6 +1,6 @@
 {
   "name": "meu-plantao",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
@@ -21,7 +21,8 @@
     "test:deslizar": "node --experimental-strip-types tests/fluxo-deslizar.mjs",
     "test:dados": "node --experimental-strip-types tests/fluxo-dados.mjs",
     "test:suave": "node --experimental-strip-types tests/fluxo-suave.mjs",
-    "test:unidades": "node --experimental-strip-types tests/fluxo-unidades.mjs"
+    "test:unidades": "node --experimental-strip-types tests/fluxo-unidades.mjs",
+    "test:lembretes": "node --experimental-strip-types tests/fluxo-lembretes.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",

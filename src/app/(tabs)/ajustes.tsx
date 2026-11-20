@@ -1,6 +1,7 @@
 import Constants from "expo-constants";
 import { Platform, View } from "react-native";
 import { CalendarioAjustes } from "@/components/calendario-ajustes";
+import { LembretesAjustes } from "@/components/lembretes-ajustes";
 import { AparenciaAjustes, DadosAjustes } from "@/components/dados-ajustes";
 import { Screen } from "@/components/screen";
 import { Card, Icone, Pill, Row, Secao, Txt } from "@/components/ui";
@@ -28,7 +29,9 @@ export default function Ajustes() {
         : { texto: "falhou", tom: "danger" as const };
 
   return (
-    <Screen titulo="Ajustes" subtitulo="Calendário, seus dados e aparência">
+    <Screen titulo="Ajustes" subtitulo="Lembretes, calendário, seus dados e aparência">
+      <LembretesAjustes />
+
       <CalendarioAjustes />
 
       {/* Precisa do banco aberto; se ele falhou, a tela continua mostrando o erro em "Sobre o app". */}

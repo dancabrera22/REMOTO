@@ -42,6 +42,16 @@ Meu Plantão.
 Você pode desconectar quando quiser, com a opção de remover os eventos criados, e
 pode revogar a permissão nas configurações do Android.
 
+## Notificações
+
+Se — e só se — você escolher um lembrete em *Ajustes → Lembretes do app*, o app pede
+permissão para **mostrar notificações**. Ele agenda, no próprio aparelho, um aviso
+antes de cada plantão agendado (título, dia, horário e endereço do local). O aviso
+**não mostra valores**. Nada sai do aparelho: quem toca o aviso é o sistema do celular.
+Para isso o app também usa o alarme exato e o início com o aparelho (reagendar os
+avisos depois de reiniciar). Você pode escolher «Sem lembrete» ou revogar a permissão
+nas configurações do Android quando quiser.
+
 ## Backup e planilha
 
 *Ajustes → Seus dados* permite gerar um arquivo de backup e uma planilha (CSV). Esses

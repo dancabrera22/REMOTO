@@ -1,4 +1,4 @@
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
@@ -6,8 +6,12 @@ import { AppState } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { executorDe } from "@/db/client";
 import { sincronizaSemSobrepor } from "@/db/calendario";
+import { sincronizaLembretesSemSobrepor } from "@/db/lembretes";
 import { BancoProvider, useEstadoBanco, useRevisao } from "@/db/provider";
 import { obtemProvedorDeCalendario } from "@/lib/calendario-provedor";
+import { assinaToquesNosAvisos, preparaNotificacoes } from "@/lib/lembretes-expo";
+import { obtemProvedorDeLembretes } from "@/lib/lembretes-provedor";
+import { Platform } from "react-native";
 import { useTheme } from "@/theme";
 import { TemaDoApp, useEscolhaDeTema } from "@/theme/escolha";
 
@@ -52,6 +56,39 @@ function SincronizadorDoCalendario() {
   return null;
 }
 
+/**
+ * Mantem os avisos agendados em dia: sincroniza pouco depois de qualquer mudanca nos dados e quando
+ * o app volta para o primeiro plano (assim o prazo de 45 dias anda). Desligado, e so uma consulta.
+ * Tambem abre o plantao quando a pessoa toca no aviso.
+ */
+function SincronizadorDeLembretes() {
+  const banco = useEstadoBanco();
+  const revisao = useRevisao();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    void preparaNotificacoes().catch(() => undefined);
+    return assinaToquesNosAvisos((id) => router.push({ pathname: "/plantao/[id]", params: { id: String(id) } }));
+  }, [router]);
+
+  useEffect(() => {
+    if (banco.status !== "pronto") return;
+    const prov = obtemProvedorDeLembretes();
+    if (!prov) return;
+
+    const roda = () => void sincronizaLembretesSemSobrepor(executorDe(banco.db), prov).catch(() => undefined);
+    const espera = setTimeout(roda, 2000);
+    const assina = AppState.addEventListener("change", (estado) => estado === "active" && roda());
+    return () => {
+      clearTimeout(espera);
+      assina.remove();
+    };
+  }, [banco, revisao]);
+
+  return null;
+}
+
 function Conteudo() {
   const t = useTheme();
   const banco = useEstadoBanco();
@@ -67,6 +104,7 @@ function Conteudo() {
     <>
       <StatusBar style={t.name === "dark" ? "light" : "dark"} />
       <SincronizadorDoCalendario />
+      <SincronizadorDeLembretes />
       <Stack
         screenOptions={{
           headerShown: false,
