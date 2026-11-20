@@ -27,6 +27,8 @@ import { testes as plantoes } from "./plantoes.mjs";
 import { testes as plantoesDb } from "./plantoes-db.mjs";
 import { testes as recorrencia } from "./recorrencia.mjs";
 import { testes as seriesDb } from "./series-db.mjs";
+import { testes as lembretes } from "./lembretes.mjs";
+import { testes as lembretesDb } from "./lembretes-db.mjs";
 import { testes as unidades } from "./unidades.mjs";
 import { testes as unidadesDb } from "./unidades-db.mjs";
 import { testes as unidadesRenomear } from "./unidades-renomear.mjs";
@@ -63,6 +65,12 @@ recorrencia();
 
 console.log("\n── escalas no banco (criar, editar, excluir, falhas no meio)");
 await seriesDb();
+
+console.log("\n── lembretes do app (o que agendar, identidade, diferença)");
+lembretes();
+
+console.log("\n── lembretes no banco (sincronizar, permissão, falhas, sem sobrepor)");
+await lembretesDb();
 
 console.log("\n── unidade do plantão (nome, sugestões, valor proposto)");
 unidades();
