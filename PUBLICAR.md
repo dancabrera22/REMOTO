@@ -137,6 +137,7 @@ desinstalar antes (a chave é outra) — faça o backup, como acima.
 | Notificações | mostrar o aviso antes de cada plantão (*Ajustes → Lembretes do app*) |
 | Alarmes e lembretes exatos (`USE_EXACT_ALARM`) | o aviso tocar na hora marcada, não minutos depois |
 | Iniciar com o aparelho (`RECEIVE_BOOT_COMPLETED`) | reagendar os avisos depois de reiniciar o celular |
+| Manter acordado (`WAKE_LOCK`) e estado da rede (`ACCESS_NETWORK_STATE`) | vêm junto da biblioteca de notificações; o app não usa a rede |
 
 > **Play Store e o alarme exato.** `USE_EXACT_ALARM` só é aceita pela Play para apps
 > cuja função principal é calendário ou alarme/lembrete. Na declaração de
@@ -144,6 +145,6 @@ desinstalar antes (a chave é outra) — faça o backup, como acima.
 > marcada é a função central. Se a Play recusar, remova `android.permission.USE_EXACT_ALARM`
 > do `app.json`: os avisos continuam, mas o Android pode atrasá-los alguns minutos.
 
-Nada mais. Em particular, **sem internet**, sem armazenamento externo (o backup e
+Nada mais (as permissões de push e de selo de ícone que a biblioteca de notificações traz são bloqueadas no `app.json`). Em particular, **sem internet**, sem armazenamento externo (o backup e
 a planilha passam pelo seletor e pelo compartilhamento do Android, que não pedem
 permissão), sem sobreposição de tela e sem vibração.
